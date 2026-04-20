@@ -1,65 +1,88 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 1. SETUP
-st.set_page_config(page_title="Classroom Retrieval", layout="wide")
+# 1. PAGE SETUP
+st.set_page_config(page_title="Retrieval Practice", layout="wide")
 
-# 2. LOAD KEY
-api_key = st.secrets.get("GEMINI_API_KEY")
+# Custom CSS for bigger text and better UI
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #f0f2f6; }
+    .answer-box { background-color: #d4edda; padding: 15px; border-radius: 10px; border-left: 5px solid #28a745; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# 3. SIDEBAR
+# 2. KEY LOADING (The "iPad-Proof" way)
+# Checks secrets first, then offers manual input
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"].strip()
+else:
+    api_key = st.sidebar.text_input("Enter API Key:", type="password")
+
+# 3. SIDEBAR CONTROLS
 with st.sidebar:
-    st.title("Settings")
-    topic = st.text_input("Topic:", placeholder="e.g. Fractions")
-    num_q = st.slider("Questions:", 1, 10, 5)
-    if not api_key:
-        st.error("🔑 Key not found in Secrets!")
-        api_key = st.text_input("Enter Key Manually:", type="password")
+    st.title("🛠️ Setup")
+    topic = st.text_input("Topic:", placeholder="e.g., Photosynthesis")
+    num_q = st.slider("Number of Questions:", 1, 10, 5)
+    st.info("The AI will generate short-answer retrieval questions.")
 
 # 4. MAIN INTERFACE
-st.title("🧠 Retrieval Practice")
+st.title("🧠 Classroom Retrieval Practice")
+st.write("Generate quick-fire questions to check for understanding.")
 
-if st.button("Generate Questions"):
-    if not api_key or not topic:
-        st.warning("Please ensure Topic and API Key are ready.")
+if st.button("✨ Generate New Questions"):
+    if not api_key:
+        st.error("Missing API Key! Add it to Streamlit Secrets or enter it in the sidebar.")
+    elif not topic:
+        st.warning("Please enter a topic first.")
     else:
         try:
+            # Configure the AI
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
            
-            # We tell the AI to ONLY give us the Q|A format
-            prompt = f"Provide {num_q} retrieval questions for {topic}. Use the format: Question | Answer. Do not include intro or outro text. One per line."
+            # Using the explicit 'models/' path to prevent 404/v1beta errors
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
            
-            with st.spinner("Generating..."):
+            prompt = f"Act as a teacher. Create {num_q} retrieval questions for {topic}. Format: Question | Answer. Keep answers very short. One per line."
+           
+            with st.spinner("Generating questions..."):
                 response = model.generate_content(prompt)
                
-                # SAFE PARSING LOGIC
-                raw_lines = response.text.strip().split('\n')
-                valid_questions = []
+                # Force response to string to prevent 'MarkdownMixin' TypeErrors
+                full_text = str(response.text)
                
-                for line in raw_lines:
-                    if "|" in line:
-                        parts = line.split("|")
-                        # Only add if it actually has two parts
-                        if len(parts) >= 2:
-                            valid_questions.append({
-                                "q": parts[0].strip(),
-                                "a": parts[1].strip()
-                            })
+                # Parse the lines
+                lines = [line for line in full_text.strip().split('\n') if "|" in line]
                
-                if valid_questions:
-                    st.session_state.questions = valid_questions
+                new_questions = []
+                for line in lines:
+                    parts = line.split("|")
+                    if len(parts) >= 2:
+                        new_questions.append({
+                            "q": parts[0].strip(),
+                            "a": parts[1].strip()
+                        })
+               
+                if new_questions:
+                    st.session_state.questions = new_questions
+                    # Force a refresh to show the new questions
                 else:
-                    st.error("The AI didn't use the right format. Try clicking Generate again.")
-                   
-        except Exception as e:
-            st.error(f"Error: {e}")
+                    st.error("The AI didn't use the correct format. Try clicking generate again.")
 
-# 5. DISPLAY (with safe check)
+        except Exception as e:
+            st.error(f"⚠️ Error: {str(e)}")
+
+# 5. DISPLAY THE QUESTIONS
 if 'questions' in st.session_state:
     for i, item in enumerate(st.session_state.questions):
-        st.divider()
-        st.subheader(f"Q{i+1}: {item['q']}")
-        # Unique keys are vital in Streamlit
-        if st.button(f"Reveal Answer {i+1}", key=f"btn_{i}"):
-            st.success(f"Answer: {item['a']}")
+        with st.container():
+            st.divider()
+            st.subheader(f"Q{i+1}: {item['q']}")
+           
+            # Using a unique key for every button
+            if st.button(f"👁️ Reveal Answer {i+1}", key=f"btn_{i}"):
+                st.markdown(f'<div class="answer-box"><b>Answer:</b> {item["a"]}</div>', unsafe_allow_html=True)
+
+# 6. FOOTER
+else:
+    st.info("Enter a topic in the sidebar and hit Generate to begin.")
