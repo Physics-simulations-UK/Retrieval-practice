@@ -41,7 +41,7 @@ if st.button("✨ Generate New Questions"):
             genai.configure(api_key=api_key)
            
             # Using the explicit 'models/' path to prevent 404/v1beta errors
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
+            model = genai.GenerativeModel('models/gemini-2.5-flash')
            
             prompt = f"Act as a teacher. Create {num_q} retrieval questions for {topic}. Format: Question | Answer. Keep answers very short. One per line."
            
