@@ -4,85 +4,78 @@ import google.generativeai as genai
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
 
-# Custom CSS for bigger text and better UI
+# Custom CSS for bigger text and explanation formatting
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #f0f2f6; }
-    .answer-box { background-color: #d4edda; padding: 15px; border-radius: 10px; border-left: 5px solid #28a745; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #f0f2f6; font-weight: bold; }
+    .explanation-box {
+        background-color: #e8f4fd;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 6px solid #2196f3;
+        font-size: 18px;
+        line-height: 1.5;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. KEY LOADING (The "iPad-Proof" way)
-# Checks secrets first, then offers manual input
+# 2. KEY LOADING
 if "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"].strip()
 else:
     api_key = st.sidebar.text_input("Enter API Key:", type="password")
 
-# 3. SIDEBAR CONTROLS
+# 3. SIDEBAR
 with st.sidebar:
-    st.title("🛠️ Setup")
-    topic = st.text_input("Topic:", placeholder="e.g., Photosynthesis")
-    num_q = st.slider("Number of Questions:", 1, 10, 5)
-    st.info("The AI will generate short-answer retrieval questions.")
+    st.title("🛠️ Settings")
+    topic = st.text_input("Topic:", placeholder="e.g., GCSE Forces")
+    num_q = st.sidebar.slider("Questions:", 1, 10, 5)
+    st.info("Now providing detailed explanations for each answer!")
 
 # 4. MAIN INTERFACE
-st.title("🧠 Classroom Retrieval Practice")
-st.write("Generate quick-fire questions to check for understanding.")
+st.title("🧠 Classroom Retrieval & Explanation")
 
-if st.button("✨ Generate New Questions"):
-    if not api_key:
-        st.error("Missing API Key! Add it to Streamlit Secrets or enter it in the sidebar.")
-    elif not topic:
-        st.warning("Please enter a topic first.")
+if st.button("✨ Generate Detailed Questions"):
+    if not api_key or not topic:
+        st.warning("Please check your API Key and Topic.")
     else:
         try:
-            # Configure the AI
             genai.configure(api_key=api_key)
-           
-            # Using the explicit 'models/' path to prevent 404/v1beta errors
+            # Using the 2026 stable model
             model = genai.GenerativeModel('models/gemini-2.5-flash')
            
-            prompt = f"Act as a teacher. Create {num_q} retrieval questions for {topic}. Format: Question | Answer. Keep answers very short. One per line."
+            # THE UPDATED PROMPT: Asking for explanations
+            prompt = (
+                f"Act as an expert teacher. Create {num_q} retrieval questions for {topic}. "
+                f"Format each line exactly as: Question | Full Answer with a brief explanation. "
+                f"Ensure the answer is accurate for the {topic} level."
+            )
            
-            with st.spinner("Generating questions..."):
+            with st.spinner("Gemini is thinking..."):
                 response = model.generate_content(prompt)
-               
-                # Force response to string to prevent 'MarkdownMixin' TypeErrors
                 full_text = str(response.text)
-               
-                # Parse the lines
                 lines = [line for line in full_text.strip().split('\n') if "|" in line]
                
-                new_questions = []
+                quiz_data = []
                 for line in lines:
                     parts = line.split("|")
                     if len(parts) >= 2:
-                        new_questions.append({
-                            "q": parts[0].strip(),
-                            "a": parts[1].strip()
-                        })
+                        quiz_data.append({"q": parts[0].strip(), "a": parts[1].strip()})
                
-                if new_questions:
-                    st.session_state.questions = new_questions
-                    # Force a refresh to show the new questions
-                else:
-                    st.error("The AI didn't use the correct format. Try clicking generate again.")
+                st.session_state.quiz_data = quiz_data
+                st.rerun()
 
         except Exception as e:
-            st.error(f"⚠️ Error: {str(e)}")
+            st.error(f"Error: {str(e)}")
 
-# 5. DISPLAY THE QUESTIONS
-if 'questions' in st.session_state:
-    for i, item in enumerate(st.session_state.questions):
+# 5. DISPLAY
+if 'quiz_data' in st.session_state:
+    for i, item in enumerate(st.session_state.quiz_data):
         with st.container():
             st.divider()
-            st.subheader(f"Q{i+1}: {item['q']}")
+            st.markdown(f"### Q{i+1}: {item['q']}")
            
-            # Using a unique key for every button
-            if st.button(f"👁️ Reveal Answer {i+1}", key=f"btn_{i}"):
-                st.markdown(f'<div class="answer-box"><b>Answer:</b> {item["a"]}</div>', unsafe_allow_html=True)
-
-# 6. FOOTER
+            if st.button(f"👁️ Reveal Detailed Answer", key=f"reveal_{i}"):
+                st.markdown(f'<div class="explanation-box"><b>Answer & Explanation:</b><br>{item["a"]}</div>', unsafe_allow_html=True)
 else:
-    st.info("Enter a topic in the sidebar and hit Generate to begin.")
+    st.info("Ready for your next topic!")
