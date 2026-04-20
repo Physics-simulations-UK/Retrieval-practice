@@ -1,54 +1,65 @@
 import streamlit as st
 import google.generativeai as genai
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Gemini Retrieval Tool", layout="wide")
+# 1. SETUP
+st.set_page_config(page_title="Classroom Retrieval", layout="wide")
 
-# Custom Styling (Projector Mode)
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; height: 3.5em; font-size: 20px !important; }
-    .question-box { font-size: 38px !important; font-weight: bold; margin-bottom: 20px; }
-    .answer-box { font-size: 32px !important; color: #ffffff; background-color: #1a73e8; padding: 20px; border-radius: 10px; }
-    </style>
-    """, unsafe_allow_now_ok=True)
+# 2. LOAD KEY
+api_key = st.secrets.get("GEMINI_API_KEY")
 
-# --- SIDEBAR ---
+# 3. SIDEBAR
 with st.sidebar:
-    st.title("⚙️ Gemini Setup")
-    gemini_key = st.text_input("Enter Gemini API Key", type="password")
-    topic = st.text_input("Topic:", placeholder="e.g. Victorian London")
+    st.title("Settings")
+    topic = st.text_input("Topic:", placeholder="e.g. Fractions")
     num_q = st.slider("Questions:", 1, 10, 5)
+    if not api_key:
+        st.error("🔑 Key not found in Secrets!")
+        api_key = st.text_input("Enter Key Manually:", type="password")
 
-# --- GENERATION LOGIC ---
-if st.button("✨ Generate Retrieval Questions"):
-    if not gemini_key:
-        st.error("Please add your API key in the sidebar!")
-    elif not topic:
-        st.error("Please enter a topic!")
+# 4. MAIN INTERFACE
+st.title("🧠 Retrieval Practice")
+
+if st.button("Generate Questions"):
+    if not api_key or not topic:
+        st.warning("Please ensure Topic and API Key are ready.")
     else:
         try:
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel('gemini-1.5-flash') # Using the fast, free-tier model
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
            
-            prompt = f"Create {num_q} short-answer retrieval questions for students on {topic}. Format each line exactly as: Question | Answer"
+            # We tell the AI to ONLY give us the Q|A format
+            prompt = f"Provide {num_q} retrieval questions for {topic}. Use the format: Question | Answer. Do not include intro or outro text. One per line."
            
-            response = model.generate_content(prompt)
-            # Parse the response
-            lines = [line for line in response.text.strip().split('\n') if "|" in line]
-            st.session_state.qa_pairs = []
-            for line in lines:
-                q, a = line.split("|")
-                st.session_state.qa_pairs.append({"q": q.strip(), "a": a.strip()})
+            with st.spinner("Generating..."):
+                response = model.generate_content(prompt)
+               
+                # SAFE PARSING LOGIC
+                raw_lines = response.text.strip().split('\n')
+                valid_questions = []
+               
+                for line in raw_lines:
+                    if "|" in line:
+                        parts = line.split("|")
+                        # Only add if it actually has two parts
+                        if len(parts) >= 2:
+                            valid_questions.append({
+                                "q": parts[0].strip(),
+                                "a": parts[1].strip()
+                            })
+               
+                if valid_questions:
+                    st.session_state.questions = valid_questions
+                else:
+                    st.error("The AI didn't use the right format. Try clicking Generate again.")
+                   
         except Exception as e:
             st.error(f"Error: {e}")
 
-# --- DISPLAY ---
-if 'qa_pairs' in st.session_state:
-    for i, pair in enumerate(st.session_state.qa_pairs):
-        st.markdown(f"### Question {i+1}")
-        st.markdown(f"<div class='question-box'>{pair['q']}</div>", unsafe_allow_now_ok=True)
-       
-        if st.button(f"Reveal Answer {i+1}", key=f"ans_{i}"):
-            st.markdown(f"<div class='answer-box'>✅ {pair['a']}</div>", unsafe_allow_now_ok=True)
-        st.write("")
+# 5. DISPLAY (with safe check)
+if 'questions' in st.session_state:
+    for i, item in enumerate(st.session_state.questions):
+        st.divider()
+        st.subheader(f"Q{i+1}: {item['q']}")
+        # Unique keys are vital in Streamlit
+        if st.button(f"Reveal Answer {i+1}", key=f"btn_{i}"):
+            st.success(f"Answer: {item['a']}")
