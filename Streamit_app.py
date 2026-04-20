@@ -3,7 +3,6 @@ import google.generativeai as genai
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
-st.logo("IMG_0202.png")
 
 # Custom CSS for bigger text and explanation formatting
 st.markdown("""
@@ -28,6 +27,8 @@ else:
 
 # 3. SIDEBAR
 with st.sidebar:
+    #This allows you to set a specific pixel width
+    st.image("IMG_0202.png",use_container_width=true)
     st.title("📚 Topic Selection")
     topic = st.text_input("Topic:", placeholder="e.g., GCSE Forces")
     num_q = st.sidebar.slider("Questions:", 1, 10, 5)
