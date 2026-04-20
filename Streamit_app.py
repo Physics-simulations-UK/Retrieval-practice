@@ -42,7 +42,7 @@ if st.button("✨ Generate Detailed Questions"):
         try:
             genai.configure(api_key=api_key)
             # Using the 2026 stable model
-            model = genai.GenerativeModel('models/gemini-2.5-flash')
+            model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
            
             # THE UPDATED PROMPT: Asking for explanations
             prompt = (
