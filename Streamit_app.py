@@ -28,7 +28,7 @@ else:
 # 3. SIDEBAR
 with st.sidebar:
     #This allows you to set a specific pixel width
-    st.image("IMG_0202.png",use_container_width=true)
+    st.image("IMG_0202.png", use_container_width=True)
     
     st.title("📚 Topic Selection")
     topic = st.text_input("Topic:", placeholder="e.g., GCSE Forces")
