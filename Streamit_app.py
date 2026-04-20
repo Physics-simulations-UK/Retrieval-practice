@@ -29,6 +29,7 @@ else:
 with st.sidebar:
     #This allows you to set a specific pixel width
     st.image("IMG_0202.png",use_container_width=true)
+    
     st.title("📚 Topic Selection")
     topic = st.text_input("Topic:", placeholder="e.g., GCSE Forces")
     num_q = st.sidebar.slider("Questions:", 1, 10, 5)
