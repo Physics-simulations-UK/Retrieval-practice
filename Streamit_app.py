@@ -49,8 +49,9 @@ if st.button("✨ Generate Detailed Questions"):
            
             # THE UPDATED PROMPT: Asking for explanations
             prompt = (
-                f"Act as an expert teacher. Create {num_q} retrieval questions for {topic}. "
-                f"Format each line exactly as: Question | Full Answer with a brief explanation. "
+                f"Act as an expert teacher. Create {num_q} high challenge retrieval questions for {topic}. "
+                f"Focus on 'Explain how', 'Compare', and 'Predict' style questions rather than simple recall."
+                f"Format each line exactly as: Question | Detailed Answer including the scientific reasoning. "
                 f"Ensure the answer is accurate for the {topic} level."
             )
            
