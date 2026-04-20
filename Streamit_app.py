@@ -27,13 +27,13 @@ else:
 
 # 3. SIDEBAR
 with st.sidebar:
-    st.title("🛠️ Settings")
+    st.title("📚 Topic Selection")
     topic = st.text_input("Topic:", placeholder="e.g., GCSE Forces")
     num_q = st.sidebar.slider("Questions:", 1, 10, 5)
     st.info("Now providing detailed explanations for each answer!")
 
 # 4. MAIN INTERFACE
-st.title("🧠 Classroom Retrieval & Explanation")
+st.title("👨‍🏫 Classroom Retrieval Practice")
 
 if st.button("✨ Generate Detailed Questions"):
     if not api_key or not topic:
