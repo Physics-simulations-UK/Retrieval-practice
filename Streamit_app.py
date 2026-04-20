@@ -3,6 +3,7 @@ import google.generativeai as genai
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
+st.logo("IMG_0202.png")
 
 # Custom CSS for bigger text and explanation formatting
 st.markdown("""
