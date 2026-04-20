@@ -27,13 +27,15 @@ else:
 
 # 3. SIDEBAR
 with st.sidebar:
-    #This allows you to set a specific pixel width
     st.image("IMG_0202.png", use_container_width=True)
     
     st.title("📚 Topic Selection")
-    topic = st.text_input("Topic:", placeholder="e.g., GCSE Forces")
+    level = st.selectbox(
+        "Select Key Stage/ Level:",
+        ["KS3 (Year 7-9)", "GCSE", "A Level", "BTEC"]
+    )
+    topic = st.text_input("Select Topic:", placeholder="e.g., Forces")
     num_q = st.sidebar.slider("Questions:", 1, 10, 5)
-    st.info("Now providing detailed explanations for each answer!")
 
 # 4. MAIN INTERFACE
 st.title("👨‍🏫 Classroom Retrieval Practice")
@@ -49,10 +51,12 @@ if st.button("✨ Generate Detailed Questions"):
            
             # THE UPDATED PROMPT: Asking for explanations
             prompt = (
-                f"Act as an expert teacher. Create {num_q} high challenge retrieval questions for {topic}. "
+                f"Act as an expert {level} teacher. Create {num_q} high challenge retrieval questions for {topic}. "
+                f"specifically at the {level} curriculum level. "
                 f"Focus on 'Explain how', 'Compare', and 'Predict' style questions rather than simple recall."
                 f"Format each line exactly as: Question | Detailed Answer including the scientific reasoning. "
                 f"Ensure the answer is accurate for the {topic} level."
+                f"Ensure the difficulty and terminology are strictly appropriate for {level}."
             )
            
             with st.spinner("Gemini is thinking..."):
