@@ -106,6 +106,11 @@ if 'quiz_data' in st.session_state:
             st.markdown(f"### Q{i+1}: {item['q']}")
            
             if st.button(f"👁️ Reveal Detailed Answer", key=f"reveal_{i}"):
-                st.markdown(f"""<div class="explanation-box"><b>Answer & Explanation:</b><br>{item["a"]}</div>""", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="explanation-box">
+                    <b>Answer & Explanation:</b><br>
+                    {item["a"]}
+                </div>
+                """, unsafe_allow_html=True)
 else:
     st.info("Ready for your next topic!")
