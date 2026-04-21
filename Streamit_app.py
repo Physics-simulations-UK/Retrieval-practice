@@ -63,7 +63,7 @@ if st.button("✨ Generate New Questions"):
             else:
                     st.error("AI connected but didn't return text.")
                     
-            except Exception as e:
+        except Exception as e:
                 st.error(f"⚠️ Error: {str(e)}")
 
 # 5. DISPLAY THE QUESTIONS
