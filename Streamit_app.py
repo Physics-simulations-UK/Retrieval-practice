@@ -61,6 +61,7 @@ if st.button("✨ Generate New Questions"):
                     st.rerun() 
                 else:
                     st.error("AI connected but didn't return text.")
+                    
     except Exception as e:
             st.error(f"⚠️ Error: {str(e)}")
 
