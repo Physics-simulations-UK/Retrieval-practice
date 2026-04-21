@@ -40,16 +40,18 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader("⏰ Question Timer")
-    duration = st.number_input("Seconds:", min_value=5, max_value=300, value=30, step=5)
+    @st.fragment
+    def classroom_timer():
+        st.subheader("⏰ Question Timer")
+        duration = st.number_input("Seconds:", min_value=5, max_value=300, value=30, step=5)
 
-    if st.button("⏱️ Start Countdown"):
-        timer_place = st.empty()
-        for remaining in range(duration, -1, -1):
+        if st.button("⏱️ Start Countdown" , key="timer_start"):
+            timer_place = st.empty()
+            for remaining in range(duration, -1, -1):
             timer_place.metric("Time Remaining" , f"{remaining}s")
             time.sleep(1)
-        st.balloons()
         timer_place.success("✅ Time is up!")
+        st.balloons()
 
 # 4. MAIN INTERFACE
 st.title("👨‍🏫 Classroom Retrieval Practice")
