@@ -35,7 +35,7 @@ def classroom_timer():
         st.balloons()
 
 def display_quiz():
-    if 'quiz_data' in st.session_state: and st.session_state.quiz_data:
+    if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         for i, item in enumerate(st.session_state.quiz_data):
             st.divider()
             st.markdown(f"### Q{i+1}: {item['q']}")
