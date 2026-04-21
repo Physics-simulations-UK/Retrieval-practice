@@ -4,7 +4,6 @@ import google.generativeai as genai
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
 
-# Custom CSS for bigger text and better UI
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #f0f2f6; }
@@ -12,8 +11,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. KEY LOADING (The "iPad-Proof" way)
-# Checks secrets first, then offers manual input
+# 2. KEY LOADING
 if "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"].strip()
 else:
@@ -37,38 +35,32 @@ if st.button("✨ Generate New Questions"):
         st.warning("Please enter a topic first.")
     else:
         try:
-            # Configure the AI
             genai.configure(api_key=api_key)
             
-            # Using the explicit 'models/' path to prevent 404/v1beta errors
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
+        try:
+            model = genai.GenerativeModel('models/gemini-2.5-flash')
+         except:
+             model = genai.GenerativeModel('models/gemini-flash-latest')
             
-            prompt = f"Act as a teacher. Create {num_q} retrieval questions for {topic}. Format: Question | Answer. Keep answers very short. One per line."
-            
-            with st.spinner("Generating questions..."):
-                response = model.generate_content(prompt)
+           with st.spinner("Connecting to Google AI..."):
+                response = model.generate_content(
+                    f"Create {num_q} school quiz questions about {topic}. Format: Question | Answer",
+                    generation_config=genai.types.GenerationConfig(candidate_count=1)
+                )
                 
-                # Force response to string to prevent 'MarkdownMixin' TypeErrors
-                full_text = str(response.text)
-                
-                # Parse the lines
-                lines = [line for line in full_text.strip().split('\n') if "|" in line]
-                
-                new_questions = []
-                for line in lines:
-                    parts = line.split("|")
-                    if len(parts) >= 2:
-                        new_questions.append({
-                            "q": parts[0].strip(),
-                            "a": parts[1].strip()
-                        })
-                
-                if new_questions:
-                    st.session_state.questions = new_questions
-                    # Force a refresh to show the new questions
+                if response.text:
+                    full_text = str(response.text)
+                    lines = [line for line in full_text.strip().split('\n') if "|" in line]
+                    
+                    st.session_state.questions = []
+                    for line in lines:
+                        parts = line.split("|")
+                        if len(parts) >= 2:
+                            st.session_state.questions.append({"q": parts[0].strip(), "a": parts[1].strip()})
+                    
+                    st.rerun() 
                 else:
-                    st.error("The AI didn't use the correct format. Try clicking generate again.")
-
+                    st.error("AI connected but didn't return text.")
         except Exception as e:
             st.error(f"⚠️ Error: {str(e)}")
 
