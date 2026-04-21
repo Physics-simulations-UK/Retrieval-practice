@@ -97,7 +97,7 @@ if st.button("🚀 Generate Questions"):
         except Exception as e:
                 if "429" in str(e):
                     st.error("**Quota Exhausted**.")
-                elif "API_KEY_INVALID" in str(e)
+                elif "API_KEY_INVALID" in str(e):
                     st.error("**INVALID KEY**.")
                 else:
                     st.error(f"Unexpected Error:{e}")
