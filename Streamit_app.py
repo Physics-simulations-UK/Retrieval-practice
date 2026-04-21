@@ -3,7 +3,7 @@ import google.generativeai as genai
 import time
 
 # 1. PAGE SETUP
-st.set_page_config(page_title="Edexcel Retrieval Practice", layout="wide")
+st.set_page_config(page_title="Retrieval Practice", layout="wide")
 
 # Custom CSS for UI
 st.markdown("""
@@ -43,7 +43,7 @@ with st.sidebar:
     
     level = st.selectbox(
         "Select Level:",
-        ["KS3 (Year 7-9)", "GCSE", "A Level"]
+        ["GCSE", "A Level"]
     )
     
     topic = st.text_input("Enter Topic:", placeholder="e.g., Forces & Motion")
