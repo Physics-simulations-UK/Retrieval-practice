@@ -89,6 +89,7 @@ if st.button("🚀 Generate Questions"):
                     q, a = line.split("|", 1) 
                     st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                 st.rerun()
-        
+    except Exception as e:
+            st.error(f"Error: {e}")
 
 display_quiz()
