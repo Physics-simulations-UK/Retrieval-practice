@@ -40,7 +40,7 @@ with st.sidebar:
     st.divider()
 
     st.subheader("⏰ Question Timer")
-    duration = st.number_input("Seconds:", min_value=5, max_value=300, value=30,
+    duration = st.number_input("Seconds:", min_value=5, max_value=300, value=30, step=5)
 
     if st.button("⏱️ Start Countdown"):
         timer_place = st.empty()
