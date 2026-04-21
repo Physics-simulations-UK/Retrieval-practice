@@ -52,6 +52,7 @@ with st.sidebar:
                 time.sleep(1)
             timer_place.success("✅ Time is up!")
             st.balloons()
+    classroom_timer()
 
 # 4. MAIN INTERFACE
 st.title("👨‍🏫 Classroom Retrieval Practice")
