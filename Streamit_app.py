@@ -82,9 +82,12 @@ if st.button("🚀 Generate Questions"):
             with st.spinner("Generating..."):
                 res = model.generate_content(prompt)
                 lines = [l for l in res.text.split('\n') if "|" in l]
+
+                if not lines:
+                    st.error("The AI didnt format the question correctly. Try clicking Generate again.")
+                else:
                
-                # Clear and rebuild session state
-                st.session_state.quiz_data = []
+                    st.session_state.quiz_data = []
                 for line in lines:
                     q, a = line.split("|", 1) # Only split on the first pipe
                     st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
