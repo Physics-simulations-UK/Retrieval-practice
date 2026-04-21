@@ -86,8 +86,7 @@ if st.button("🚀 Generate Questions"):
                 if not lines:
                     st.error("The AI didnt format the question correctly. Try clicking Generate again.")
                 else:
-               
-                    st.session_state.quiz_data = []
+                   st.session_state.quiz_data = []
                 for line in lines:
                     q, a = line.split("|", 1) # Only split on the first pipe
                     st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
