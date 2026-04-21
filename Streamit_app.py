@@ -36,7 +36,8 @@ with st.sidebar:
     # Handle Logo (Ensure your file is named 'mylogo.png' on GitHub)
     try:
         st.image("IMG_0202.png", use_container_width=True)
-    
+    except:
+        st.write("✨ **Edexcel Retrieval Tool**")
     
     st.title("🎯 Selection")
     
