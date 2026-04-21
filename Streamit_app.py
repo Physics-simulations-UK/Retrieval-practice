@@ -58,9 +58,9 @@ if st.button("✨ Generate New Questions"):
                         if len(parts) >= 2:
                             st.session_state.questions.append({"q": parts[0].strip(), "a": parts[1].strip()})
                     
-                 st.rerun() 
-             else:
-                 st.error("AI connected but didn't return text.")
+                    st.rerun() 
+                 else:
+                    st.error("AI connected but didn't return text.")
     except Exception as e:
             st.error(f"⚠️ Error: {str(e)}")
 
