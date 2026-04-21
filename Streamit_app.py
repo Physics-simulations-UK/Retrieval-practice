@@ -35,12 +35,11 @@ def classroom_timer():
         st.balloons()
 
 def display_quiz():
-    if 'quiz_data' in st.session_state:
+    if 'quiz_data' in st.session_state: and st.session_state.quiz_data:
         for i, item in enumerate(st.session_state.quiz_data):
             st.divider()
             st.markdown(f"### Q{i+1}: {item['q']}")
             if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"):
-                # We use Markdown to ensure LaTeX ($) renders correctly
                 st.markdown(f'<div class="explanation-box"><b>Edexcel Guidance:</b><br>{item["a"]}</div>', unsafe_allow_html=True)
     else:
         st.info("Ready for your topic selection!")
@@ -79,28 +78,16 @@ if st.button("🚀 Generate Questions"):
             )
            
             with st.spinner("Generating..."):
-                res = model.generate_content(prompt)
-                if not res.text:
-                    st.warning("The API returned an empty response.")
-                    st.stop()
-                    
-                lines = [l.strip() for l in res.text.split('\n') if "|" in l]
+                res = model.generate_content(prompt)   
+                lines = [l for l in res.text.split('\n') if "|" in l]
 
                 if not lines:
                     st.error("The AI didnt format the question correctly. Try clicking Generate again.")
                 else:
                    st.session_state.quiz_data = []
                 for line in lines:
-                    q, a = line.split("|", 1) # Only split on the first pipe
+                    q, a = line.split("|", 1) 
                     st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                 st.rerun()
-        except Exception as e:
-                if "429" in str(e):
-                    st.error("**Quota Exhausted**.")
-                elif "API_KEY_INVALID" in str(e):
-                    st.error("**INVALID KEY**.")
-                else:
-                    st.error(f"Unexpected Error:{e}")
-            
-
+        
 display_quiz()
