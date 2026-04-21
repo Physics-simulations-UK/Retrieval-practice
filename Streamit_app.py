@@ -69,6 +69,9 @@ if st.button("✨ Generate Detailed Questions"):
             # THE UPDATED PROMPT: Asking for explanations
             prompt = (
                 f"Act as an expert {level} teacher specializing in Edexcel exam board specification."
+                f"IMPORTANT: Use LaTex for all mathematical equations and formulas."
+                f"Put standalone equations on their own line wrapped in double dollar signs, e.g., $$F = m \\times a$$. "
+                f" Put inline variables or units in single dollar signs, e.g., $m/s^2$. "
                 f"Create {num_q} high challenge retrieval questions for {topic} strictly following the Edexcel {level} syllabus."
                 f"specifically at the {level} curriculum level. "
                 f"Use Edexcel specific terminology (e.g., mark scheme keywords)."
