@@ -51,8 +51,10 @@ if st.button("✨ Generate Detailed Questions"):
            
             # THE UPDATED PROMPT: Asking for explanations
             prompt = (
-                f"Act as an expert {level} teacher. Create {num_q} high challenge retrieval questions for {topic}. "
+                f"Act as an expert {level} teacher specializing in Edexcel exam board specification."
+                f"Create {num_q} high challenge retrieval questions for {topic} strictly following the Edexcel {level} syllabus."
                 f"specifically at the {level} curriculum level. "
+                f"Use Edexcel specific terminology (e.g., mark scheme keywords)."
                 f"Focus on 'Explain how', 'Compare', and 'Predict' style questions rather than simple recall."
                 f"Format each line exactly as: Question | Detailed Answer including the scientific reasoning. "
                 f"Ensure the answer is accurate for the {topic} level."
