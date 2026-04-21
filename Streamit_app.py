@@ -34,7 +34,6 @@ def classroom_timer():
         ph.success("⏰ Time is up!")
         st.balloons()
 
-@st.fragment
 def display_quiz():
     if 'quiz_data' in st.session_state:
         for i, item in enumerate(st.session_state.quiz_data):
@@ -81,7 +80,7 @@ if st.button("🚀 Generate Questions"):
            
             with st.spinner("Generating..."):
                 res = model.generate_content(prompt)
-                lines = [l for l in res.text.split('\n') if "|" in l]
+                lines = [l.strip() for l in res.text.split('\n') if "|" in l]
 
                 if not lines:
                     st.error("The AI didnt format the question correctly. Try clicking Generate again.")
