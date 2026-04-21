@@ -64,7 +64,7 @@ with st.sidebar:
         timer_place.success("⏰ Time is up!")
 
 # 4. MAIN GENERATION LOGIC
-st.title("🧠 Edexcel Retrieval Practice")
+st.title("🧠 Retrieval Practice")
 
 if st.button("🚀 Generate Edexcel Questions"):
     if not api_key or not topic:
