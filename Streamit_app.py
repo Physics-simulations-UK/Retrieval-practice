@@ -38,9 +38,9 @@ if st.button("✨ Generate New Questions"):
             genai.configure(api_key=api_key)
             
             try:
-            model = genai.GenerativeModel('models/gemini-2.5-flash')
+                model = genai.GenerativeModel('models/gemini-2.5-flash')
              except:
-             model = genai.GenerativeModel('models/gemini-flash-latest')
+                 model = genai.GenerativeModel('models/gemini-flash-latest')
             
                with st.spinner("Connecting to Google AI..."):
                 response = model.generate_content(
