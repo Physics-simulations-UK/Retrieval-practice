@@ -37,6 +37,19 @@ with st.sidebar:
     topic = st.text_input("Select Topic:", placeholder="e.g., Forces")
     num_q = st.sidebar.slider("Questions:", 1, 10, 5)
 
+    st.divider()
+
+    st.subheader("⏰ Question Timer")
+    duration = st.number_input("Seconds:", min_value=5, max_value=300, value=30,
+
+    if st.button("⏱️ Start Countdown"):
+        timer_place = st.empty()
+        for remaining in range(duration, -1, -1):
+            timer_place.metric("Time Remaining" , f"{remaining}s")
+            time.sleep(1)
+        st.balloons()
+        timer_place.success("✅ Time is up!")
+
 # 4. MAIN INTERFACE
 st.title("👨‍🏫 Classroom Retrieval Practice")
 
