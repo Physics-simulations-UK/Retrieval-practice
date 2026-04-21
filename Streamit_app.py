@@ -39,7 +39,7 @@ if st.button("✨ Generate New Questions"):
             
             try:
                 model = genai.GenerativeModel('models/gemini-2.5-flash')
-             except:
+                 except:
                  model = genai.GenerativeModel('models/gemini-flash-latest')
             
                with st.spinner("Connecting to Google AI..."):
