@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import time
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
