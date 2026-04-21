@@ -78,26 +78,25 @@ if st.button("🚀 Generate Questions"):
            
             with st.spinner("Generating..."):
                 res = model.generate_content(prompt)
-                # Split lines and filter for those containing the pipe symbol
+                # Filter for lines that actually contain the pipe
                 lines = [l.strip() for l in res.text.split('\n') if "|" in l]
 
                 if not lines:
-                    st.error("The AI output didn't match the required format. Please try again.")
-                    st.info(f"AI said: {res.text[:100]}...") # Shows a snippet of what went wrong
+                    st.error("Format error. AI didn't use '|'. Try again.")
                 else:
-                    # 1. Clear and Fill the session state
-                    temp_data = []
+                    # FIX: Clear and update session state properly
+                    st.session_state.quiz_data = []
                     for line in lines:
                         parts = line.split("|", 1)
-                        temp_data.append({"q": parts[0].strip(), "a": parts[1].strip()})
+                        st.session_state.quiz_data.append({
+                            "q": parts[0].strip(), 
+                            "a": parts[1].strip()
+                        })
                     
-                    st.session_state.quiz_data = temp_data
-                    
-                    # 2. Rerun the app to force the display_quiz fragment to see the new data
+                    # Force the page to refresh so the fragment sees the new data
                     st.rerun()
-
         except Exception as e:
             st.error(f"Error: {e}")
 
-# IMPORTANT: This must be called at the very bottom
+# IMPORTANT: This call MUST be here, outside the button block
 display_quiz()
