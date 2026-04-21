@@ -41,7 +41,7 @@ if st.button("✨ Generate New Questions"):
                 model = genai.GenerativeModel('models/gemini-2.5-flash_lite')
             
             
-            with st.spinner("Connecting to Google AI..."):
+                with st.spinner("Connecting to Google AI..."):
                 response = model.generate_content(
                     f"Create {num_q} school quiz questions about {topic}. Format: Question | Answer",
                     generation_config=genai.types.GenerationConfig(candidate_count=1)
