@@ -69,7 +69,6 @@ if st.button("🚀 Generate Questions"):
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
            
-            # The "Strict Format" Prompt
             prompt = (
                 f"Act as an Edexcel teacher. Create {num_q} questions for {topic} at {level}. "
                 f"Use LaTeX for math (e.g. $E=mc^2$). "
@@ -78,20 +77,27 @@ if st.button("🚀 Generate Questions"):
             )
            
             with st.spinner("Generating..."):
-                res = model.generate_content(prompt)   
-                lines = [l for l in res.text.split('\n') if "|" in l]
+                res = model.generate_content(prompt)
+                # Split lines and filter for those containing the pipe symbol
+                lines = [l.strip() for l in res.text.split('\n') if "|" in l]
 
                 if not lines:
-                    st.error("The AI didnt format the question correctly. Try clicking Generate again.")
+                    st.error("The AI output didn't match the required format. Please try again.")
+                    st.info(f"AI said: {res.text[:100]}...") # Shows a snippet of what went wrong
                 else:
-                    # FIX: These three lines must have the EXACT same indentation
-                    st.session_state.quiz_data = []
+                    # 1. Clear and Fill the session state
+                    temp_data = []
                     for line in lines:
-                        q, a = line.split("|", 1) 
-                        st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
+                        parts = line.split("|", 1)
+                        temp_data.append({"q": parts[0].strip(), "a": parts[1].strip()})
                     
+                    st.session_state.quiz_data = temp_data
+                    
+                    # 2. Rerun the app to force the display_quiz fragment to see the new data
                     st.rerun()
-        except Exception as e:
-            st.error(f"Quota error or Connection issue: {e}")
 
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# IMPORTANT: This must be called at the very bottom
 display_quiz()
