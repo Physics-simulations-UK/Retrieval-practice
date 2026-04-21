@@ -38,7 +38,7 @@ if st.button("✨ Generate New Questions"):
             genai.configure(api_key=api_key)
             
             try:
-                model = genai.GenerativeModel('models/gemini-2.5-flash_lite')
+                model = genai.GenerativeModel('models/gemini-2.5-flash')
             except:
                 
                 model = genai.GenerativeModel('models/gemini-flash-latest')
