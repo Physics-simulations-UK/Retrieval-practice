@@ -90,4 +90,5 @@ if st.button("🚀 Generate Questions"):
                     st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                 st.rerun()
         
+
 display_quiz()
