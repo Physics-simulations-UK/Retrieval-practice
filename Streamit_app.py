@@ -85,9 +85,9 @@ if st.button("🚀 Generate Questions"):
                     st.error("The AI didnt format the question correctly. Try clicking Generate again.")
                 else:
                    st.session_state.quiz_data = []
-                for line in lines:
-                    q, a = line.split("|", 1) 
-                    st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
+                    for line in lines:
+                        q, a = line.split("|", 1) 
+                        st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                 st.rerun()
     except Exception as e:
             st.error(f"Error: {e}")
