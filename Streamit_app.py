@@ -80,6 +80,10 @@ if st.button("🚀 Generate Questions"):
            
             with st.spinner("Generating..."):
                 res = model.generate_content(prompt)
+                if not res.text:
+                    st.warning("The API returned an empty response.")
+                    st.stop()
+                    
                 lines = [l.strip() for l in res.text.split('\n') if "|" in l]
 
                 if not lines:
@@ -91,6 +95,12 @@ if st.button("🚀 Generate Questions"):
                     st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                 st.rerun()
         except Exception as e:
-            st.error(f"Quota error or Connection issue: {e}")
+                if "429" in str(e):
+                    st.error("**Quota Exhausted**.")
+                elif "API_KEY_INVALID" in str(e)
+                    st.error("**INVALID KEY**.")
+                else:
+                    st.error(f"Unexpected Error:{e}")
+            
 
 display_quiz()
