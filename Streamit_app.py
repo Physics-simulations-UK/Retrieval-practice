@@ -48,10 +48,10 @@ with st.sidebar:
         if st.button("⏱️ Start Countdown" , key="timer_start"):
             timer_place = st.empty()
             for remaining in range(duration, -1, -1):
-            timer_place.metric("Time Remaining" , f"{remaining}s")
-            time.sleep(1)
-        timer_place.success("✅ Time is up!")
-        st.balloons()
+                timer_place.metric("Time Remaining" , f"{remaining}s")
+                time.sleep(1)
+            timer_place.success("✅ Time is up!")
+            st.balloons()
 
 # 4. MAIN INTERFACE
 st.title("👨‍🏫 Classroom Retrieval Practice")
