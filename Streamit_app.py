@@ -37,12 +37,12 @@ if st.button("✨ Generate New Questions"):
         try:
             genai.configure(api_key=api_key)
             
-        try:
+            try:
             model = genai.GenerativeModel('models/gemini-2.5-flash')
-         except:
+             except:
              model = genai.GenerativeModel('models/gemini-flash-latest')
             
-           with st.spinner("Connecting to Google AI..."):
+               with st.spinner("Connecting to Google AI..."):
                 response = model.generate_content(
                     f"Create {num_q} school quiz questions about {topic}. Format: Question | Answer",
                     generation_config=genai.types.GenerationConfig(candidate_count=1)
@@ -58,10 +58,10 @@ if st.button("✨ Generate New Questions"):
                         if len(parts) >= 2:
                             st.session_state.questions.append({"q": parts[0].strip(), "a": parts[1].strip()})
                     
-                    st.rerun() 
-                else:
+                 st.rerun() 
+         else:
                     st.error("AI connected but didn't return text.")
-        except Exception as e:
+     except Exception as e:
             st.error(f"⚠️ Error: {str(e)}")
 
 # 5. DISPLAY THE QUESTIONS
