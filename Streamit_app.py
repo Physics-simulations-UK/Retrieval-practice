@@ -49,7 +49,7 @@ if st.button("✨ Generate New Questions"):
                     generation_config=genai.types.GenerationConfig(candidate_count=1)
                 )
                 
-                if response.text:
+            if response.text:
                     full_text = str(response.text)
                     lines = [line for line in full_text.strip().split('\n') if "|" in line]
                     
