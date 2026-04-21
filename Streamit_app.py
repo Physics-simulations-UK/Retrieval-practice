@@ -1,99 +1,88 @@
 import streamlit as st
 import google.generativeai as genai
-import time
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
 
+# Custom CSS for bigger text and better UI
 st.markdown("""
     <style>
-    .explanation-box {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 6px solid #2196f3;
-        line-height: 1.6;
-    }
-    [data-testid="stMetricValue"] { font-size: 45px; color: #ff4b4b; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #f0f2f6; }
+    .answer-box { background-color: #d4edda; padding: 15px; border-radius: 10px; border-left: 5px solid #28a745; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. API KEY LOADING
-api_key = st.secrets.get("GEMINI_API_KEY", "")
+# 2. KEY LOADING (The "iPad-Proof" way)
+# Checks secrets first, then offers manual input
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"].strip()
+else:
+    api_key = st.sidebar.text_input("Enter API Key:", type="password")
 
-# 3. FRAGMENTS
-@st.fragment
-def classroom_timer():
-    st.subheader("⏲️ Classroom Timer")
-    duration = st.number_input("Seconds:", 5, 300, 30, 5)
-    if st.button("⏱️ Start Countdown", key="t_btn"):
-        ph = st.empty()
-        for i in range(duration, -1, -1):
-            ph.metric("Time Remaining", f"{i}s")
-            time.sleep(1)
-        ph.success("⏰ Time is up!")
-        st.balloons()
-
-def display_quiz():
-    if 'quiz_data' in st.session_state and st.session_state.quiz_data:
-        for i, item in enumerate(st.session_state.quiz_data):
-            st.divider()
-            st.markdown(f"### Q{i+1}: {item['q']}")
-            if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"):
-                st.markdown(f'<div class="explanation-box"><b>Edexcel Guidance:</b><br>{item["a"]}</div>', unsafe_allow_html=True)
-    else:
-        st.info("Ready for your topic selection!")
-
-# 4. SIDEBAR
+# 3. SIDEBAR CONTROLS
 with st.sidebar:
-    try:
-        st.image("IMG_0202.png", use_container_width=True)
-    except:
-        st.title("📚 Topic Selection")
-   
-    level = st.selectbox("Level:", ["GCSE", "A Level"])
-    topic = st.text_input("Topic:", placeholder="e.g. Waves")
-    num_q = st.slider("Questions:", 1, 10, 5)
-   
-    st.divider()
-    classroom_timer()
+    st.title("🛠️ Setup")
+    topic = st.text_input("Topic:", placeholder="e.g., Photosynthesis")
+    num_q = st.slider("Number of Questions:", 1, 10, 5)
+    st.info("The AI will generate short-answer retrieval questions.")
 
-# 5. MAIN LOGIC
-st.title("👨🏻‍🏫 Retrieval Practice")
+# 4. MAIN INTERFACE
+st.title("🧠 Classroom Retrieval Practice")
+st.write("Generate quick-fire questions to check for understanding.")
 
-if st.button("🚀 Generate Questions"):
-    if not api_key or not topic:
-        st.error("Missing API Key or Topic!")
+if st.button("✨ Generate New Questions"):
+    if not api_key:
+        st.error("Missing API Key! Add it to Streamlit Secrets or enter it in the sidebar.")
+    elif not topic:
+        st.warning("Please enter a topic first.")
     else:
         try:
+            # Configure the AI
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
-           
-            prompt = (
-                f"Act as an Edexcel teacher. Create {num_q} questions for {topic} at {level}. "
-                f"Use LaTeX for math. Separate Question and Answer with exactly one '|' symbol. "
-                f"DO NOT include any introductory text."
-            )
-           
-            with st.spinner("Generating..."):
-                res = model.generate_content(prompt)
-                # This line filters out any "Here are your questions" chatter from the AI
-                lines = [l.strip() for l in res.text.split('\n') if "|" in l]
-
-                if not lines:
-                    st.error("The AI didn't format the questions correctly. Try again.")
+            
+            # Using the explicit 'models/' path to prevent 404/v1beta errors
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
+            
+            prompt = f"Act as a teacher. Create {num_q} retrieval questions for {topic}. Format: Question | Answer. Keep answers very short. One per line."
+            
+            with st.spinner("Generating questions..."):
+                response = model.generate_content(prompt)
+                
+                # Force response to string to prevent 'MarkdownMixin' TypeErrors
+                full_text = str(response.text)
+                
+                # Parse the lines
+                lines = [line for line in full_text.strip().split('\n') if "|" in line]
+                
+                new_questions = []
+                for line in lines:
+                    parts = line.split("|")
+                    if len(parts) >= 2:
+                        new_questions.append({
+                            "q": parts[0].strip(),
+                            "a": parts[1].strip()
+                        })
+                
+                if new_questions:
+                    st.session_state.questions = new_questions
+                    # Force a refresh to show the new questions
                 else:
-                    # WE REPRODUCE THE EXACT WORKING LOOP HERE
-                    st.session_state.quiz_data = [] 
-                    for line in lines:
-                        q, a = line.split("|", 1)
-                        st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
-                    
-                    # This tells Streamlit the data is ready and to refresh the screen
-                    st.rerun()
+                    st.error("The AI didn't use the correct format. Try clicking generate again.")
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"⚠️ Error: {str(e)}")
 
-# This is the line that makes the questions visible on the screen
-display_quiz()
+# 5. DISPLAY THE QUESTIONS
+if 'questions' in st.session_state:
+    for i, item in enumerate(st.session_state.questions):
+        with st.container():
+            st.divider()
+            st.subheader(f"Q{i+1}: {item['q']}")
+            
+            # Using a unique key for every button
+            if st.button(f"👁️ Reveal Answer {i+1}", key=f"btn_{i}"):
+                st.markdown(f'<div class="answer-box"><b>Answer:</b> {item["a"]}</div>', unsafe_allow_html=True)
+
+# 6. FOOTER
+else:
+    st.info("Enter a topic in the sidebar and hit Generate to begin.")
