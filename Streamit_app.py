@@ -72,30 +72,28 @@ if st.button("🚀 Generate Questions"):
             prompt = (
                 f"Act as an Edexcel teacher. Create {num_q} questions for {topic} at {level}. "
                 f"Use LaTeX for math. Separate Question and Answer with exactly one '|' symbol. "
-                f"DO NOT include any introductory text. Start immediately with Question | Answer."
+                f"DO NOT include any introductory text."
             )
            
             with st.spinner("Generating..."):
                 res = model.generate_content(prompt)
-                # Filter for valid lines immediately
-                valid_lines = [l.strip() for l in res.text.split('\n') if "|" in l]
+                # This line filters out any "Here are your questions" chatter from the AI
+                lines = [l.strip() for l in res.text.split('\n') if "|" in l]
 
-                if not valid_lines:
-                    st.error("The AI didn't use the '|' separator. Please try again.")
+                if not lines:
+                    st.error("The AI didn't format the questions correctly. Try again.")
                 else:
-                    # FIX: Everything below is indented inside this 'else'
-                    new_data = []
-                    for line in valid_lines:
-                        parts = line.split("|", 1)
-                        if len(parts) == 2:
-                            new_data.append({"q": parts[0].strip(), "a": parts[1].strip()})
+                    # WE REPRODUCE THE EXACT WORKING LOOP HERE
+                    st.session_state.quiz_data = [] 
+                    for line in lines:
+                        q, a = line.split("|", 1)
+                        st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                     
-                    # Update session state all at once
-                    st.session_state.quiz_data = new_data
+                    # This tells Streamlit the data is ready and to refresh the screen
                     st.rerun()
 
         except Exception as e:
             st.error(f"Error: {e}")
 
-# This stays outside to ensure the fragment is always called
+# This is the line that makes the questions visible on the screen
 display_quiz()
