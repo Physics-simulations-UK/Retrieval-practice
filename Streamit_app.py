@@ -2,106 +2,120 @@ import streamlit as st
 import google.generativeai as genai
 import time
 
-# 1. PAGE SETUP
-st.set_page_config(page_title="Edexcel Retrieval", layout="wide")
+# --- 1. PAGE CONFIG & STYLING ---
+st.set_page_config(page_title="Edexcel Retrieval Pro", layout="wide")
 
 st.markdown("""
     <style>
     .explanation-box {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 6px solid #2196f3;
-        line-height: 1.6;
+        background-color: #f0f7ff;
+        padding: 18px;
+        border-radius: 8px;
+        border-left: 5px solid #004b95;
+        color: #1e1e1e;
+        margin-top: 10px;
     }
-    [data-testid="stMetricValue"] { font-size: 45px; color: #ff4b4b; }
+    .stMetric { background-color: #fff2f2; padding: 10px; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. API KEY LOADING
+# --- 2. API SETUP ---
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-# 3. FRAGMENTS
+# --- 3. FRAGMENTS (Independent Areas) ---
+
 @st.fragment
 def classroom_timer():
-    st.subheader("⏲️ Classroom Timer")
-    duration = st.number_input("Seconds:", 5, 300, 30, 5)
-    if st.button("⏱️ Start Countdown", key="t_btn"):
-        ph = st.empty()
-        for i in range(duration, -1, -1):
-            ph.metric("Time Remaining", f"{i}s")
+    st.subheader("⏲️ Lesson Timer")
+    cols = st.columns([1, 1])
+    with cols[0]:
+        duration = st.number_input("Seconds:", 5, 600, 30, 10)
+   
+    if st.button("⏱️ Start Countdown", key="timer_run"):
+        placeholder = st.empty()
+        for remaining in range(duration, -1, -1):
+            placeholder.metric("Time Remaining", f"{remaining}s")
             time.sleep(1)
-        ph.success("⏰ Time is up!")
+        placeholder.success("⏰ Time's up!")
         st.balloons()
 
 @st.fragment
 def display_quiz():
-    if 'quiz_data' in st.session_state:
+    if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         for i, item in enumerate(st.session_state.quiz_data):
-            st.divider()
-            st.markdown(f"### Q{i+1}: {item['q']}")
-            if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"):
-                # We use Markdown to ensure LaTeX ($) renders correctly
-                st.markdown(f'<div class="explanation-box"><b>Edexcel Guidance:</b><br>{item["a"]}</div>', unsafe_allow_html=True)
+            with st.container():
+                st.divider()
+                st.markdown(f"### Q{i+1}: {item['q']}")
+               
+                # Unique key for each button ensures they don't clash
+                if st.button(f"👁️ Reveal Answer & Mark Scheme", key=f"rev_{i}"):
+                    st.markdown(f"""
+                        <div class="explanation-box">
+                            <b>Edexcel Guidance:</b><br>{item['a']}
+                        </div>
+                    """, unsafe_allow_html=True)
     else:
-        st.info("Ready for your topic selection!")
+        st.info("👈 Set your topic in the sidebar and click Generate!")
 
-# 4. SIDEBAR
+# --- 4. SIDEBAR ---
 with st.sidebar:
-    try:
-        st.image("mylogo.png", use_container_width=True)
-    except:
-        st.title("🎯 Edexcel Prep")
+    st.title("🎯 Edexcel Tool")
    
-    level = st.selectbox("Level:", ["KS3", "GCSE", "A Level"])
-    topic = st.text_input("Topic:", placeholder="e.g. Waves")
+    level = st.selectbox("Exam Level:", ["KS3", "GCSE", "A Level"])
+    topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
    
     st.divider()
     classroom_timer()
 
-# 5. MAIN LOGIC
-st.title("🧠 Edexcel Retrieval Practice")
+# --- 5. MAIN LOGIC & GENERATION ---
+st.title("🧠 Retrieval Practice")
 
-if st.button("🚀 Generate Questions"):
-    if not api_key or not topic:
-        st.error("Missing API Key or Topic!")
+if st.button("🚀 Generate Questions", key="main_gen"):
+    if not api_key:
+        st.error("API Key missing! Check your Secrets.")
+    elif not topic:
+        st.warning("Please enter a topic first.")
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+            # Using the latest 2026 stable model string
+            model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05')
            
-             # 1. We tell the AI to be VERY simple with the format
+            # Strict prompt to avoid 'blank' errors
             prompt = (
-                f"Create {num_q} Edexcel {level} questions about {topic}. "
-                f"Use this EXACT format for every line: Question Text | Answer Text. "
-                f"Do not use bold, do not use bullet points, do not use numbers. "
-                f"Use LaTeX for math like $E=mc^2$."
+                f"Act as a science teacher. Create {num_q} retrieval questions for {level} {topic}. "
+                f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
+                f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
+                f"No bolding, no numbers, no intro text. Just the lines with |."
             )
            
-            with st.spinner("Writing questions..."):
-                res = model.generate_content(prompt)
-                raw_text = res.text
+            with st.spinner("Generating exam-style questions..."):
+                response = model.generate_content(prompt)
+                raw_text = response.text
                
-                # DEBUG: This lets you see what the AI actually said if it fails
-                # st.write(raw_text)
-
-                st.session_state.quiz_data = []
-               
+                new_quiz = []
                 for line in raw_text.split('\n'):
                     if "|" in line:
-                        # We split and then strip out any weird characters like * or numbers
-                        parts = line.split("|")
-                        if len(parts) >= 2:
-                            q = parts[0].replace("*", "").strip()
-                            a = parts[1].replace("*", "").strip()
+                        parts = line.split("|", 1)
+                        if len(parts) == 2:
+                            q_clean = parts[0].replace("*", "").strip()
+                            a_clean = parts[1].replace("*", "").strip()
                            
-                            # Only add if it's not empty
-                            if q and a:
-                                st.session_state.quiz_data.append({"q": q, "a": a})
+                            if len(q_clean) > 3: # Ignore stray fragments
+                                new_quiz.append({"q": q_clean, "a": a_clean})
                
-                st.rerun()
+                if new_quiz:
+                    st.session_state.quiz_data = new_quiz
+                    st.rerun()
+                else:
+                    st.error("The AI response was formatted incorrectly. Please try again.")
+       
         except Exception as e:
-            st.error(f"Quota error or Connection issue: {e}")
+            if "429" in str(e):
+                st.error("Quota exceeded! Please wait a minute or check your daily limit.")
+            else:
+                st.error(f"An error occurred: {e}")
 
+# --- 6. RENDER THE QUIZ ---
 display_quiz()
