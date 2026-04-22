@@ -85,7 +85,10 @@ if st.button("🚀 Generate Questions", key="main_gen"):
            
             # Strict prompt to avoid 'blank' errors
             prompt = (
-                f"Act as an expert {level} edexcel teacher. Create {num_q} retrieval questions for {level} {topic}. "
+                f"Act as an expert {level} Edexcel examiner." 
+                f"Create {num_q} retrieval questions for the {level} {topic} topic. "
+                f"strictly follow the current Edexcel Specification."
+                f"The 'Answer' side must include specific Edexcel marking key words as found in offical mark schemes."
                 f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
                 f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
                 f"No bolding, no numbers, no intro text. Just the lines with |."
