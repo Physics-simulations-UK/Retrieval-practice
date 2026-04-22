@@ -3,7 +3,7 @@ import google.generativeai as genai
 import time
 
 # --- 1. PAGE CONFIG & STYLING ---
-st.set_page_config(page_title="Edexcel Retrieval Pro", layout="wide")
+st.set_page_config(page_title="Retrieval Practice Pro", layout="wide")
 
 st.markdown("""
     <style>
@@ -56,9 +56,9 @@ def display_quiz():
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.title("🎯 Edexcel Tool")
+    st.title("🎯 Selector")
    
-    level = st.selectbox("Exam Level:", ["KS3", "GCSE", "A Level"])
+    level = st.selectbox("Exam Level:", ["GCSE", "A Level"])
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
    
@@ -81,7 +81,7 @@ if st.button("🚀 Generate Questions", key="main_gen"):
            
             # Strict prompt to avoid 'blank' errors
             prompt = (
-                f"Act as a science teacher. Create {num_q} retrieval questions for {level} {topic}. "
+                f"Act as an expert {level} edexcel teacher. Create {num_q} retrieval questions for {level} {topic}. "
                 f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
                 f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
                 f"No bolding, no numbers, no intro text. Just the lines with |."
