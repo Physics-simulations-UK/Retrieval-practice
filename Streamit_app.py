@@ -71,23 +71,35 @@ if st.button("🚀 Generate Questions"):
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
            
-            # The "Strict Format" Prompt
+             # 1. We tell the AI to be VERY simple with the format
             prompt = (
-                f"Act as an Edexcel teacher. Create {num_q} questions for {topic} at {level}. "
-                f"Use LaTeX for math (e.g. $E=mc^2$). "
-                f"CRITICAL: Separate Question and Answer with exactly one '|' symbol. "
-                f"Format: Question | Answer + Mark Scheme Keywords."
+                f"Create {num_q} Edexcel {level} questions about {topic}. "
+                f"Use this EXACT format for every line: Question Text | Answer Text. "
+                f"Do not use bold, do not use bullet points, do not use numbers. "
+                f"Use LaTeX for math like $E=mc^2$."
             )
            
-            with st.spinner("Generating..."):
+            with st.spinner("Writing questions..."):
                 res = model.generate_content(prompt)
-                lines = [l for l in res.text.split('\n') if "|" in l]
+                raw_text = res.text
                
-                # Clear and rebuild session state
+                # DEBUG: This lets you see what the AI actually said if it fails
+                # st.write(raw_text)
+
                 st.session_state.quiz_data = []
-                for line in lines:
-                    q, a = line.split("|", 1) # Only split on the first pipe
-                    st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
+               
+                for line in raw_text.split('\n'):
+                    if "|" in line:
+                        # We split and then strip out any weird characters like * or numbers
+                        parts = line.split("|")
+                        if len(parts) >= 2:
+                            q = parts[0].replace("*", "").strip()
+                            a = parts[1].replace("*", "").strip()
+                           
+                            # Only add if it's not empty
+                            if q and a:
+                                st.session_state.quiz_data.append({"q": q, "a": a})
+               
                 st.rerun()
         except Exception as e:
             st.error(f"Quota error or Connection issue: {e}")
