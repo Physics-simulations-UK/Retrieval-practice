@@ -34,11 +34,7 @@ else:
 # 3. SIDEBAR (Logo, Selection, and Timer)
 with st.sidebar:
     # Handle Logo (Ensure your file is named 'mylogo.png' on GitHub)
-    try:
-        st.image("IMG_0202.png", use_container_width=True)
-    except:
-        st.write("✨ **Edexcel Retrieval Tool**")
-    
+    st.image("IMG_0202.png", use_container_width=True)
     st.title("🎯 Selection")
     
     level = st.selectbox(
@@ -73,13 +69,13 @@ if st.button("🚀 Generate Edexcel Questions"):
         try:
             genai.configure(api_key=api_key)
             # Using Lite for better free-tier stability in 2026
-            model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+            model = genai.GenerativeModel('models/gemini-2.5-flash')
             
             prompt = (
-                f"Act as a senior Edexcel examiner. Create {num_q} retrieval questions for {topic} "
-                f"at {level} level. Focus on conceptual depth. "
-                f"Format: Question | Answer + Explanation + 'Key Terms' for the mark scheme. "
-                f"Ensure terminology matches Edexcel specification exactly."
+                f"Act as an expert {level} teacher. Create {num_q} retrieval questions for {topic} "
+                f"Specifically at {level} level. Focus on conceptual depth. "
+                f"Format each line exactly as: Question | Full Answer with explination."
+                f"Ensure terminology matches Edexcel {level} specification exactly."
             )
             
             with st.spinner(f"Creating {level} questions..."):
