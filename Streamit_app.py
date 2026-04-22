@@ -49,11 +49,8 @@ def display_quiz():
                
                 # Unique key for each button ensures they don't clash
                 if st.button(f"👁️ Reveal Answer & Mark Scheme", key=f"rev_{i}"):
-                    st.markdown(f"""
-                        <div class="explanation-box">
-                            <b>Edexcel Guidance:</b><br>{item['a']}
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.write("**Edexcel Guidance**")
+                    st.info(item['a'])
     else:
         st.info("👈 Set your topic in the sidebar and click Generate!")
 
