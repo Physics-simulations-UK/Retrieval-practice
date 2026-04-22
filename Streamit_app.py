@@ -80,7 +80,7 @@ if st.button("🚀 Generate Questions", key="main_gen"):
         try:
             genai.configure(api_key=api_key)
             # Using the latest 2026 stable model string
-            model = genai.GenerativeModel('gemini-2.0-flash-lite-preview-02-05')
+            model = genai.GenerativeModel('gemini-2.5-flash-lite')
            
             # Strict prompt to avoid 'blank' errors
             prompt = (
