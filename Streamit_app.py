@@ -1,92 +1,95 @@
 import streamlit as st
 import google.generativeai as genai
+import time
 
 # 1. PAGE SETUP
-st.set_page_config(page_title="Retrieval Practice", layout="wide")
+st.set_page_config(page_title="Edexcel Retrieval", layout="wide")
 
-# Custom CSS for UI
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #f0f2f6; font-weight: bold; }
-    .explanation-box { 
-        background-color: #e8f4fd; 
-        padding: 20px; 
-        border-radius: 10px; 
+    .explanation-box {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
         border-left: 6px solid #2196f3;
-        font-size: 18px;
-        line-height: 1.5;
+        line-height: 1.6;
     }
+    [data-testid="stMetricValue"] { font-size: 45px; color: #ff4b4b; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. KEY LOADING
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"].strip()
-else:
-    api_key = st.sidebar.text_input("Enter API Key:", type="password")
+# 2. API KEY LOADING
+api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-# 3. SIDEBAR (Logo, Selection, and Timer)
+# 3. FRAGMENTS
+@st.fragment
+def classroom_timer():
+    st.subheader("⏲️ Classroom Timer")
+    duration = st.number_input("Seconds:", 5, 300, 30, 5)
+    if st.button("⏱️ Start Countdown", key="t_btn"):
+        ph = st.empty()
+        for i in range(duration, -1, -1):
+            ph.metric("Time Remaining", f"{i}s")
+            time.sleep(1)
+        ph.success("⏰ Time is up!")
+        st.balloons()
+
+@st.fragment
+def display_quiz():
+    if 'quiz_data' in st.session_state:
+        for i, item in enumerate(st.session_state.quiz_data):
+            st.divider()
+            st.markdown(f"### Q{i+1}: {item['q']}")
+            if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"):
+                # We use Markdown to ensure LaTeX ($) renders correctly
+                st.markdown(f'<div class="explanation-box"><b>Edexcel Guidance:</b><br>{item["a"]}</div>', unsafe_allow_html=True)
+    else:
+        st.info("Ready for your topic selection!")
+
+# 4. SIDEBAR
 with st.sidebar:
-    # Handle Logo (Ensure your file is named 'mylogo.png' on GitHub)
-    st.image("IMG_0202.png", use_container_width=True)
-    st.title("🎯 Selection")
-    
-    level = st.selectbox(
-        "Select Level:",
-        ["GCSE", "A Level"]
-    )
-    
-    topic = st.text_input("Enter Topic:", placeholder="e.g., Forces & Motion")
+    try:
+        st.image("mylogo.png", use_container_width=True)
+    except:
+        st.title("🎯 Edexcel Prep")
+   
+    level = st.selectbox("Level:", ["KS3", "GCSE", "A Level"])
+    topic = st.text_input("Topic:", placeholder="e.g. Waves")
     num_q = st.slider("Questions:", 1, 10, 5)
-    
+   
     st.divider()
-    
+    classroom_timer()
 
+# 5. MAIN LOGIC
+st.title("🧠 Edexcel Retrieval Practice")
 
-# 4. MAIN GENERATION LOGIC
-st.title("🧠 Retrieval Practice")
-
-if st.button("🚀 Generate Edexcel Questions"):
+if st.button("🚀 Generate Questions"):
     if not api_key or not topic:
-        st.warning("Please provide an API Key and a Topic.")
+        st.error("Missing API Key or Topic!")
     else:
         try:
             genai.configure(api_key=api_key)
-            # Using Lite for better free-tier stability in 2026
-            model = genai.GenerativeModel('models/gemini-2.5-flash')
-            
+            model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+           
+            # The "Strict Format" Prompt
             prompt = (
-                f"Act as an expert {level} teacher. Create {num_q} retrieval questions for {topic} "
-                f"Specifically at {level} level. Focus on conceptual depth. "
-                f"Format each line exactly as: Question | Full Answer with explination."
-                f"Ensure terminology matches Edexcel {level} specification exactly."
+                f"Act as an Edexcel teacher. Create {num_q} questions for {topic} at {level}. "
+                f"Use LaTeX for math (e.g. $E=mc^2$). "
+                f"CRITICAL: Separate Question and Answer with exactly one '|' symbol. "
+                f"Format: Question | Answer + Mark Scheme Keywords."
             )
-            
-            with st.spinner(f"Creating {level} questions..."):
-                response = model.generate_content(prompt)
-                full_text = str(response.text)
-                lines = [line for line in full_text.strip().split('\n') if "|" in line]
-                
-                quiz_data = []
+           
+            with st.spinner("Generating..."):
+                res = model.generate_content(prompt)
+                lines = [l for l in res.text.split('\n') if "|" in l]
+               
+                # Clear and rebuild session state
+                st.session_state.quiz_data = []
                 for line in lines:
-                    parts = line.split("|")
-                    if len(parts) >= 2:
-                        quiz_data.append({"q": parts[0].strip(), "a": parts[1].strip()})
-                
-                st.session_state.quiz_data = quiz_data
+                    q, a = line.split("|", 1) # Only split on the first pipe
+                    st.session_state.quiz_data.append({"q": q.strip(), "a": a.strip()})
                 st.rerun()
-
         except Exception as e:
-            st.error(f"⚠️ Error: {str(e)}")
+            st.error(f"Quota error or Connection issue: {e}")
 
-# 5. DISPLAY QUESTIONS
-if 'quiz_data' in st.session_state:
-    for i, item in enumerate(st.session_state.quiz_data):
-        with st.container():
-            st.divider()
-            st.markdown(f"### Q{i+1}: {item['q']}")
-            
-            if st.button(f"👁️ Reveal Answer & Mark Scheme", key=f"reveal_{i}"):
-                st.markdown(f'<div class="explanation-box"><b>Edexcel Guidance:</b><br>{item["a"]}</div>', unsafe_allow_html=True)
-else:
-    st.info("Select your level and topic in the sidebar to start.")
+display_quiz()
