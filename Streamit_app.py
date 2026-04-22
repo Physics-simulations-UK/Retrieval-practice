@@ -56,7 +56,7 @@ def display_quiz():
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.image("IMG_0202.png", use_container_width=true)
+    st.image("IMG_0202.png", use_container_width=True)
     
     st.divider()
     
