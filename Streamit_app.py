@@ -66,7 +66,7 @@ with st.sidebar:
     classroom_timer()
 
 # --- 5. MAIN LOGIC & GENERATION ---
-st.title("🧠 Retrieval Practice")
+st.title("👨🏻‍🏫 Retrieval Practice")
 
 if st.button("🚀 Generate Questions", key="main_gen"):
     if not api_key:
