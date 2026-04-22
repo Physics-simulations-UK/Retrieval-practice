@@ -1,6 +1,5 @@
 import streamlit as st
 import google.generativeai as genai
-import time
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Retrieval Practice", layout="wide")
@@ -16,11 +15,6 @@ st.markdown("""
         border-left: 6px solid #2196f3;
         font-size: 18px;
         line-height: 1.5;
-    }
-    /* Styles the timer metric */
-    [data-testid="stMetricValue"] {
-        font-size: 40px;
-        color: #ff4b4b;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -47,17 +41,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- CLASSROOM TIMER SECTION ---
-    st.subheader("⏲️ Classroom Timer")
-    duration = st.number_input("Seconds:", min_value=5, max_value=300, value=30, step=5)
-    
-    if st.button("⏱️ Start Countdown"):
-        timer_place = st.empty()
-        for remaining in range(duration, -1, -1):
-            timer_place.metric("Time Remaining", f"{remaining}s")
-            time.sleep(1)
-        st.balloons()
-        timer_place.success("⏰ Time is up!")
+
 
 # 4. MAIN GENERATION LOGIC
 st.title("🧠 Retrieval Practice")
