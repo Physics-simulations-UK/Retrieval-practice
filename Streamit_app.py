@@ -90,6 +90,7 @@ if st.button("🚀 Generate Questions", key="main_gen"):
                 f"strictly follow the current Edexcel Specification."
                 f"The 'Answer' side must include specific Edexcel marking key words as found in offical mark schemes."
                 f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
+                f"In the Answer section, include a brief 'Common Misconception' tip in brackets if applicable, focus on misconceptions specifically mentioned in Examiner Reports."
                 f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
                 f"No bolding, no numbers, no intro text. Just the lines with |."
             )
