@@ -56,6 +56,9 @@ def display_quiz():
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
+    st.image("IMG_0202.png", use_container_width=true)
+    st.divider()
+    
     st.title("🎯 Topic Selector")
    
     level = st.selectbox("Exam Level:", ["GCSE", "A Level"])
