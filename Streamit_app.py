@@ -56,7 +56,7 @@ def display_quiz():
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.title("🎯 Selector")
+    st.title("🎯 Topic Selector")
    
     level = st.selectbox("Exam Level:", ["GCSE", "A Level"])
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
