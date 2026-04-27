@@ -3,7 +3,7 @@ import google.generativeai as genai
 import time
 
 # --- 1. PAGE CONFIG & STYLING ---
-st.set_page_config(page_title="Retrieval Practice Pro", layout="wide")
+st.set_page_config(page_title="✅ Retrieval Practice Pro", layout="wide")
 
 st.markdown("""
     <style>
