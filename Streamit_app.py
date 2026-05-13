@@ -51,8 +51,6 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
    
-    st.divider()
-    classroom_timer()
 
 # --- 5. MAIN LOGIC & GENERATION ---
 st.title("👨🏻‍🏫 Retrieval Practice")
