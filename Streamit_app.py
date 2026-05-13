@@ -25,21 +25,6 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 # --- 3. FRAGMENTS (Independent Areas) ---
 
 @st.fragment
-def classroom_timer():
-    st.subheader("⏲️ Lesson Timer")
-    cols = st.columns([1, 1])
-    with cols[0]:
-        duration = st.number_input("Seconds:", 5, 600, 30, 10)
-   
-    if st.button("⏱️ Start Countdown", key="timer_run"):
-        placeholder = st.empty()
-        for remaining in range(duration, -1, -1):
-            placeholder.metric("Time Remaining", f"{remaining}s")
-            time.sleep(1)
-        placeholder.success("⏰ Time's up!")
-        st.balloons()
-
-@st.fragment
 def display_quiz():
     if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         for i, item in enumerate(st.session_state.quiz_data):
