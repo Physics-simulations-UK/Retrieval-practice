@@ -33,25 +33,24 @@ def display_quiz():
         for i, item in enumerate(st.session_state.quiz_data):
             with st.container():
                 st.divider()
-                # -- The question---
-                if is_arabic(item['q']):
-                    st.markdown(f'<div> style="direction: rtl; text-align: right;"><h3><Q{i+1}: {item["q"]}>/h3></dive>', unsafe_allow_html=True)
-                else:
-                    st.markdown(f"### Q{i+1}: {item['q']}")
+               # --- THE QUESTION --- 
+                q_text = item['q'] 
+                if is_arabic(q_text): # We use a single f-string block to avoid breaking the HTML 
+                    html_q = f'<div dir="rtl" style="text-align: right;"><h3>Q{i+1}: {q_text}</h3></div>' 
+                    st.markdown(html_q, unsafe_allow_html=True) 
+                else: 
+                    st.markdown(f"### Q{i+1}: {q_text}") 
                 # --- THE ANSWER --- 
                 if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"): 
                     st.write("**Mark Scheme / Guidance:**") 
                     
-                    if is_arabic(item['a']): 
-                        # Arabic Answer Box 
-                        st.markdown(f""" 
-                            <div class="explanation-box" style="direction: rtl; text-align: right;"> 
-                                {item['a']} 
-                            </div> 
-                        """, unsafe_allow_html=True)
+                    a_text = item['a'] 
+                    if is_arabic(a_text): 
+                        html_a = f'<div dir="rtl" style="text-align: right; background-color: #f0f2f6; padding: 15px; border-radius: 10px;">{a_text}</div>' 
+                        st.markdown(html_a, unsafe_allow_html=True) 
                     else: 
-                        # Science/Maths Answer Box (Native st.info handles $ math perfectly) 
-                        st.info(item['a'])
+                        # Native info box for Science/Maths (handles LaTeX $) 
+                        st.info(a_text)
     else:
         st.info("👈 Set your topic in the sidebar and click Generate!")
 
