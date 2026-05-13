@@ -23,6 +23,9 @@ st.markdown("""
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # --- 3. FRAGMENTS (Independent Areas) ---
+import re
+def is_arabic(text)
+    return bool(re.search(r'[\u0600-\u06FF]', text)]
 
 @st.fragment
 def display_quiz():
@@ -30,12 +33,19 @@ def display_quiz():
         for i, item in enumerate(st.session_state.quiz_data):
             with st.container():
                 st.divider()
-                st.markdown(f"### Q{i+1}: {item['q']}")
-               
-                # Unique key for each button ensures they don't clash
-                if st.button(f"👁️ Reveal Answer & Mark Scheme", key=f"rev_{i}"):
-                    st.write("**Edexcel Guidance**")
-                    st.info(item['a'])
+                # 1. Determine direction based on the question content direction
+                = "rtl" if is_arabic(item['q']) else "ltr" 
+                align = "right" if direction == "rtl" else "left" 
+                # 2. Display Question with dynamic alignment 
+                st.markdown(f'<div style="direction: {direction}; text-align: {align};"><h3>Q{i+1}: {item["q"]}</h3></div>', unsafe_allow_html=True) 
+                if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"): 
+                    st.write("**Mark Scheme / Guidance:**") 
+                    # 3. Display Answer box with dynamic alignment 
+                    st.markdown(f""" 
+                        <div class="explanation-box" style="direction: {direction}; text-align: {align};"> 
+                            {item['a']} 
+                        </div> 
+                    """, unsafe_allow_html=True)
     else:
         st.info("👈 Set your topic in the sidebar and click Generate!")
 
