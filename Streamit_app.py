@@ -33,8 +33,8 @@ def display_quiz():
         for i, item in enumerate(st.session_state.quiz_data):
             with st.container():
                 st.divider()
-                # 1. Determine direction based on the question content direction
-                = "rtl" if is_arabic(item['q']) else "ltr" 
+                # 1. Determine direction based on the question content 
+                direction = "rtl" if is_arabic(item['q']) else "ltr" 
                 align = "right" if direction == "rtl" else "left" 
                 # 2. Display Question with dynamic alignment 
                 st.markdown(f'<div style="direction: {direction}; text-align: {align};"><h3>Q{i+1}: {item["q"]}</h3></div>', unsafe_allow_html=True) 
