@@ -33,19 +33,25 @@ def display_quiz():
         for i, item in enumerate(st.session_state.quiz_data):
             with st.container():
                 st.divider()
-                # 1. Determine direction based on the question content 
-                direction = "rtl" if is_arabic(item['q']) else "ltr" 
-                align = "right" if direction == "rtl" else "left" 
-                # 2. Display Question with dynamic alignment 
-                st.markdown(f'<div style="direction: {direction}; text-align: {align};"><h3>Q{i+1}: {item["q"]}</h3></div>', unsafe_allow_html=True) 
+                # -- The question---
+                if is_arabic(item['q']):
+                    st.markdown(f'<div> style="direction: rtl; text-align: right;"><h3><Q{i+1}: {item["q"]}>/h3></dive>', unsafe_allow_html=True)
+                else
+                    st.markdown(f"### Q{i+1}: {item['q']}")
+                # --- THE ANSWER --- 
                 if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"): 
                     st.write("**Mark Scheme / Guidance:**") 
-                    # 3. Display Answer box with dynamic alignment 
-                    st.markdown(f""" 
-                        <div class="explanation-box" style="direction: {direction}; text-align: {align};"> 
-                            {item['a']} 
-                        </div> 
-                    """, unsafe_allow_html=True)
+                    
+                    if is_arabic(item['a']): 
+                        # Arabic Answer Box 
+                        st.markdown(f""" 
+                            <div class="explanation-box" style="direction: rtl; text-align: right;"> 
+                                {item['a']} 
+                            </div> 
+                        """, unsafe_allow_html=True)
+                    else: 
+                        # Science/Maths Answer Box (Native st.info handles $ math perfectly) 
+                        st.info(item['a'])
     else:
         st.info("👈 Set your topic in the sidebar and click Generate!")
 
