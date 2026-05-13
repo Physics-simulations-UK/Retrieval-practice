@@ -24,7 +24,7 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 # --- 3. FRAGMENTS (Independent Areas) ---
 import re
-def is_arabic(text)
+def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text)]
 
 @st.fragment
