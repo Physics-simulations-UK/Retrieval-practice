@@ -36,7 +36,7 @@ def display_quiz():
                 # -- The question---
                 if is_arabic(item['q']):
                     st.markdown(f'<div> style="direction: rtl; text-align: right;"><h3><Q{i+1}: {item["q"]}>/h3></dive>', unsafe_allow_html=True)
-                else
+                else:
                     st.markdown(f"### Q{i+1}: {item['q']}")
                 # --- THE ANSWER --- 
                 if st.button(f"👁️ Reveal Answer", key=f"rev_{i}"): 
