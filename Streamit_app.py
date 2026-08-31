@@ -5,10 +5,10 @@ import re
 # --- 1. PAGE CONFIG & STYLING ---
 st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon="✅")
 
-# CSS to make native Streamlit buttons uniform and clean, + print control
+# CSS to standardize buttons and enforce high-contrast print styling
 st.markdown("""
     <style>
-    /* Uniform height & font for all buttons */
+    /* Uniform height & font for all top buttons */
     .stButton > button {
         height: 40px !important;
         font-size: 14px !important;
@@ -25,8 +25,9 @@ st.markdown("""
         margin-top: 10px;
     }
 
-    /* PRINT STYLESHEET (Controls layout when exporting to PDF) */
+    /* PRINT STYLESHEET (Controls layout and contrast when exporting to PDF) */
     @media print {
+        /* Hide sidebar, buttons, and Streamlit header/footer */
         section[data-testid="stSidebar"],
         button,
         header,
@@ -40,10 +41,29 @@ st.markdown("""
             background-color: #ffffff !important;
             color: #000000 !important;
         }
+
+        /* Force ALL text to render in solid dark print font */
+        h1, h2, h3, h4, p, span, div, strong, em {
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Override st.info / stAlert soft grey styling for full contrast print */
+        [data-testid="stAlert"] {
+            background-color: #f8fafc !important;
+            color: #000000 !important;
+            border: 1px solid #004b95 !important;
+            opacity: 1 !important;
+        }
+        
+        [data-testid="stAlert"] * {
+            color: #000000 !important;
+        }
         
         .pdf-card {
             border: 1px solid #cbd5e1 !important;
-            background-color: #f8fafc !important;
+            background-color: #ffffff !important;
             padding: 12px 16px !important;
             margin-bottom: 14px !important;
             border-radius: 6px !important;
@@ -148,16 +168,15 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
 
     with col2:
-        # BUTTON 2: MASTER REVEAL / HIDE ALL (Native Streamlit Button)
+        # BUTTON 2: MASTER REVEAL / HIDE ALL
         if st.button(master_label, key="master_toggle_button", use_container_width=True):
             st.session_state.revealed_answers = [not all_revealed] * quiz_len
             st.rerun()
 
     with col3:
-        # BUTTON 3: SAVE TO PDF (Native Streamlit Button)
+        # BUTTON 3: SAVE TO PDF
         print_clicked = st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True)
         if print_clicked:
-            # Triggers native browser print via an invisible script injection
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
 
     st.divider()
