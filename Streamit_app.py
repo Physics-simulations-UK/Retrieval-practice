@@ -20,7 +20,6 @@ st.markdown("""
 
     /* PRINT STYLESHEET (Controls layout when exporting to PDF) */
     @media print {
-        /* Hide sidebar, buttons, and navigation when printing */
         section[data-testid="stSidebar"],
         button,
         header,
@@ -43,12 +42,6 @@ st.markdown("""
             border-radius: 6px !important;
             page-break-inside: avoid !important;
         }
-
-        .pdf-header {
-            border-bottom: 2px solid #004b95;
-            padding-bottom: 8px;
-            margin-bottom: 20px;
-        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -61,64 +54,12 @@ def is_arabic(text):
     """Detects if string contains Arabic characters."""
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 4. FRAGMENTS (Independent Areas) ---
-@st.fragment
-def display_quiz():
-    if 'quiz_data' in st.session_state and st.session_state.quiz_data:
-        
-        # Action Bar with Print/Save to PDF Trigger
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.caption(f"**Exam Level:** {st.session_state.get('last_level', 'GCSE')} | **Topic:** {st.session_state.get('last_topic', 'Retrieval Practice')}")
-        with col2:
-            # Native JS trigger opens browser print dialog (Save as PDF)
-            st.components.v1.html("""
-                <button onclick="window.parent.print()" style="
-                    background-color: #004b95;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    border-radius: 6px;
-                    font-weight: bold;
-                    cursor: pointer;
-                    width: 100%;
-                ">🖨️ Save as PDF</button>
-            """, height=45)
-
-        # Questions Display Loop
-        for i, item in enumerate(st.session_state.quiz_data):
-            st.markdown('<div class="pdf-card">', unsafe_allow_html=True)
-            st.divider()
-            
-            # --- THE QUESTION --- 
-            q_text = item['q'] 
-            if is_arabic(q_text): 
-                html_q = f'<div dir="rtl" style="text-align: right;"><h3>Q{i+1}: {q_text}</h3></div>' 
-                st.markdown(html_q, unsafe_allow_html=True) 
-            else: 
-                st.markdown(f"### Q{i+1}: {q_text}") 
-
-            # --- THE ANSWER / MARK SCHEME --- 
-            if st.button(f"👁️ Reveal Answer Q{i+1}", key=f"rev_{i}"): 
-                st.write("**Mark Scheme / Guidance:**") 
-                
-                a_text = item['a'] 
-                if is_arabic(a_text): 
-                    html_a = f'<div dir="rtl" style="text-align: right; background-color: #eff6ff; padding: 12px; border-radius: 6px; border-right: 4px solid #004b95;">{a_text}</div>' 
-                    st.markdown(html_a, unsafe_allow_html=True) 
-                else: 
-                    st.info(a_text)
-                    
-            st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info("👈 Set your topic in the sidebar and click Generate!")
-
-# --- 5. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     try:
         st.image("IMG_0202.png", use_container_width=True)
     except Exception:
-        pass  # Fallback if image isn't loaded
+        pass
     
     st.divider()
     st.title("🎯 Topic Selector")
@@ -127,10 +68,10 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 6. MAIN LOGIC & AI GENERATION ---
+# --- 5. MAIN LOGIC & AI GENERATION ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-if st.button("🚀 Generate Questions", key="main_gen"):
+if st.button("🚀 Generate Questions", key="main_gen", type="primary"):
     if not api_key:
         st.error("API Key missing! Check your Secrets.")
     elif not topic:
@@ -170,6 +111,8 @@ if st.button("🚀 Generate Questions", key="main_gen"):
                     st.session_state.quiz_data = new_quiz
                     st.session_state.last_level = level
                     st.session_state.last_topic = topic
+                    # Set initial state: all answers hidden
+                    st.session_state.revealed_answers = [False] * len(new_quiz)
                     st.rerun()
                 else:
                     st.error("The AI response was formatted incorrectly. Please try again.")
@@ -180,5 +123,76 @@ if st.button("🚀 Generate Questions", key="main_gen"):
             else:
                 st.error(f"An error occurred: {e}")
 
-# --- 7. RENDER THE QUIZ ---
-display_quiz()
+st.divider()
+
+# --- 6. DISPLAY QUIZ & CONTROLS ---
+if 'quiz_data' in st.session_state and st.session_state.quiz_data:
+    quiz_len = len(st.session_state.quiz_data)
+
+    # Ensure state array matches current quiz size
+    if 'revealed_answers' not in st.session_state or len(st.session_state.revealed_answers) != quiz_len:
+        st.session_state.revealed_answers = [False] * quiz_len
+
+    # Topic Meta Header
+    st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
+
+    # CONTROL BUTTON 1: MASTER REVEAL / HIDE ALL
+    all_revealed = all(st.session_state.revealed_answers)
+    master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
+    
+    if st.button(master_label, key="master_toggle_button", use_container_width=True):
+        st.session_state.revealed_answers = [not all_revealed] * quiz_len
+        st.rerun()
+
+    # CONTROL BUTTON 2: SAVE TO PDF
+    st.components.v1.html("""
+        <button onclick="window.parent.print()" style="
+            background-color: #004b95;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        ">🖨️ Save as PDF</button>
+    """, height=50)
+
+    st.write("") # Spacing
+
+    # QUESTIONS & ANSWERS LOOP
+    for i, item in enumerate(st.session_state.quiz_data):
+        st.markdown('<div class="pdf-card">', unsafe_allow_html=True)
+        
+        # --- Question ---
+        q_text = item['q']
+        if is_arabic(q_text):
+            st.markdown(f'<div dir="rtl" style="text-align: right;"><h3>Q{i+1}: {q_text}</h3></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f"### Q{i+1}: {q_text}")
+
+        # --- Individual Answer Toggle Button ---
+        is_revealed = st.session_state.revealed_answers[i]
+        btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
+        
+        if st.button(f"{btn_label} Q{i+1}", key=f"individual_btn_{i}"):
+            st.session_state.revealed_answers[i] = not is_revealed
+            st.rerun()
+
+        # --- Answer Output ---
+        if st.session_state.revealed_answers[i]:
+            st.write("**Mark Scheme / Guidance:**")
+            a_text = item['a']
+            if is_arabic(a_text):
+                st.markdown(f'<div dir="rtl" style="text-align: right; background-color: #eff6ff; padding: 12px; border-radius: 6px; border-right: 4px solid #004b95;">{a_text}</div>', unsafe_allow_html=True)
+            else:
+                st.info(a_text)
+                
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.divider()
+
+else:
+    st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
