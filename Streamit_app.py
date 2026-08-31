@@ -5,29 +5,15 @@ import re
 # --- 1. PAGE CONFIG & STYLING ---
 st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon="✅")
 
-# CSS to strictly standardize button heights, vertical alignment, and print styles
+# CSS to make native Streamlit buttons uniform and clean, + print control
 st.markdown("""
     <style>
-    /* Equalize heights and vertical baseline for Streamlit buttons & Component IFrames */
-    .stButton > button, div[data-testid="stCustomComponentV1"] button {
-        height: 42px !important;
-        line-height: 42px !important;
-        padding: 0px 16px !important;
+    /* Uniform height & font for all buttons */
+    .stButton > button {
+        height: 40px !important;
         font-size: 14px !important;
-        font-weight: 600 !important;
+        font-weight: 500 !important;
         border-radius: 8px !important;
-        vertical-align: middle !important;
-        box-sizing: border-box !important;
-    }
-
-    /* Container alignment for side-by-side columns */
-    div[data-testid="column"] {
-        display: flex;
-        align-items: flex-end;
-    }
-    
-    div[data-testid="stCustomComponentV1"] {
-        margin-top: 0px !important;
     }
 
     .explanation-box {
@@ -92,8 +78,8 @@ with st.sidebar:
 # --- 5. MAIN PAGE & SINGLE-ROW ACTION BUTTONS ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-# Create 3 equal, tightly fitted columns for perfect alignment
-col1, col2, col3, _ = st.columns([1.8, 1.8, 1.5, 3])
+# Create 3 equal columns for side-by-side native Streamlit buttons
+col1, col2, col3, _ = st.columns([1.8, 1.8, 1.8, 2.5])
 
 with col1:
     # BUTTON 1: GENERATE QUESTIONS
@@ -151,7 +137,7 @@ if generate_clicked:
             else:
                 st.error(f"An error occurred: {e}")
 
-# Render Master Toggle and Print buttons alongside Generate
+# Render Master Toggle and Print buttons alongside Generate as native Streamlit buttons
 if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
@@ -162,34 +148,17 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
 
     with col2:
-        # BUTTON 2: MASTER REVEAL / HIDE ALL
+        # BUTTON 2: MASTER REVEAL / HIDE ALL (Native Streamlit Button)
         if st.button(master_label, key="master_toggle_button", use_container_width=True):
             st.session_state.revealed_answers = [not all_revealed] * quiz_len
             st.rerun()
 
     with col3:
-        # BUTTON 3: SAVE TO PDF (Styled matching Streamlit button CSS)
-        st.components.v1.html("""
-            <button onclick="window.parent.print()" style="
-                background-color: #004b95;
-                color: white;
-                border: 1px solid #004b95;
-                padding: 0px 16px;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 14px;
-                font-family: inherit;
-                cursor: pointer;
-                height: 42px;
-                line-height: 42px;
-                width: 100%;
-                box-sizing: border-box;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                white-space: nowrap;
-            ">🖨️ Save as PDF</button>
-        """, height=45)
+        # BUTTON 3: SAVE TO PDF (Native Streamlit Button)
+        print_clicked = st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True)
+        if print_clicked:
+            # Triggers native browser print via an invisible script injection
+            st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
 
     st.divider()
 
