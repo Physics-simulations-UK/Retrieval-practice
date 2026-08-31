@@ -136,30 +136,36 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     # Topic Meta Header
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
 
-    # CONTROL BUTTON 1: MASTER REVEAL / HIDE ALL
-    all_revealed = all(st.session_state.revealed_answers)
-    master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
+    # ACTION BAR: Compact, matching button sizes
+    col1, col2, _ = st.columns([1.5, 1.5, 5]) # Compact columns pushing buttons to the left
     
-    if st.button(master_label, key="master_toggle_button", use_container_width=True):
-        st.session_state.revealed_answers = [not all_revealed] * quiz_len
-        st.rerun()
+    with col1:
+        # CONTROL BUTTON 1: MASTER REVEAL / HIDE ALL
+        all_revealed = all(st.session_state.revealed_answers)
+        master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
+        
+        if st.button(master_label, key="master_toggle_button"):
+            st.session_state.revealed_answers = [not all_revealed] * quiz_len
+            st.rerun()
 
-    # CONTROL BUTTON 2: SAVE TO PDF
-    st.components.v1.html("""
-        <button onclick="window.parent.print()" style="
-            background-color: #004b95;
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 5px;
-            margin-bottom: 10px;
-        ">🖨️ Save as PDF</button>
-    """, height=50)
+    with col2:
+        # CONTROL BUTTON 2: SAVE TO PDF (Styled to match standard Streamlit buttons)
+        st.components.v1.html("""
+            <button onclick="window.parent.print()" style="
+                background-color: #004b95;
+                color: white;
+                border: none;
+                padding: 6px 16px;
+                border-radius: 8px;
+                font-weight: 400;
+                font-size: 14px;
+                cursor: pointer;
+                height: 38px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            ">🖨️ Save as PDF</button>
+        """, height=45)
 
     st.write("") # Spacing
 
