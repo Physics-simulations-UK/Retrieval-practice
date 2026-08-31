@@ -5,9 +5,31 @@ import re
 # --- 1. PAGE CONFIG & STYLING ---
 st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon="✅")
 
-# CSS for Streamlit UI + Print-to-PDF Stylesheet
+# CSS to strictly standardize button heights, vertical alignment, and print styles
 st.markdown("""
     <style>
+    /* Equalize heights and vertical baseline for Streamlit buttons & Component IFrames */
+    .stButton > button, div[data-testid="stCustomComponentV1"] button {
+        height: 42px !important;
+        line-height: 42px !important;
+        padding: 0px 16px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        vertical-align: middle !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Container alignment for side-by-side columns */
+    div[data-testid="column"] {
+        display: flex;
+        align-items: flex-end;
+    }
+    
+    div[data-testid="stCustomComponentV1"] {
+        margin-top: 0px !important;
+    }
+
     .explanation-box {
         background-color: #f0f7ff;
         padding: 18px;
@@ -16,7 +38,6 @@ st.markdown("""
         color: #1e1e1e;
         margin-top: 10px;
     }
-    .stMetric { background-color: #fff2f2; padding: 10px; border-radius: 10px; }
 
     /* PRINT STYLESHEET (Controls layout when exporting to PDF) */
     @media print {
@@ -71,12 +92,12 @@ with st.sidebar:
 # --- 5. MAIN PAGE & SINGLE-ROW ACTION BUTTONS ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-# Create 3 compact columns for the top action bar
+# Create 3 equal, tightly fitted columns for perfect alignment
 col1, col2, col3, _ = st.columns([1.8, 1.8, 1.5, 3])
 
 with col1:
     # BUTTON 1: GENERATE QUESTIONS
-    generate_clicked = st.button("🚀 Generate Questions", key="main_gen", type="primary")
+    generate_clicked = st.button("🚀 Generate Questions", key="main_gen", type="primary", use_container_width=True)
 
 # Logic for Question Generation
 if generate_clicked:
@@ -130,7 +151,7 @@ if generate_clicked:
             else:
                 st.error(f"An error occurred: {e}")
 
-# Only render the Master Toggle and Print buttons if questions exist
+# Render Master Toggle and Print buttons alongside Generate
 if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
@@ -142,24 +163,28 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
 
     with col2:
         # BUTTON 2: MASTER REVEAL / HIDE ALL
-        if st.button(master_label, key="master_toggle_button"):
+        if st.button(master_label, key="master_toggle_button", use_container_width=True):
             st.session_state.revealed_answers = [not all_revealed] * quiz_len
             st.rerun()
 
     with col3:
-        # BUTTON 3: SAVE TO PDF
+        # BUTTON 3: SAVE TO PDF (Styled matching Streamlit button CSS)
         st.components.v1.html("""
             <button onclick="window.parent.print()" style="
                 background-color: #004b95;
                 color: white;
-                border: none;
-                padding: 6px 14px;
+                border: 1px solid #004b95;
+                padding: 0px 16px;
                 border-radius: 8px;
-                font-weight: 400;
+                font-weight: 600;
                 font-size: 14px;
+                font-family: inherit;
                 cursor: pointer;
-                height: 38px;
-                display: inline-flex;
+                height: 42px;
+                line-height: 42px;
+                width: 100%;
+                box-sizing: border-box;
+                display: flex;
                 align-items: center;
                 justify-content: center;
                 white-space: nowrap;
