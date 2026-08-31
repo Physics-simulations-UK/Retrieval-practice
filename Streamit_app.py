@@ -68,10 +68,18 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 5. MAIN LOGIC & AI GENERATION ---
+# --- 5. MAIN PAGE & SINGLE-ROW ACTION BUTTONS ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-if st.button("🚀 Generate Questions", key="main_gen", type="primary"):
+# Create 3 compact columns for the top action bar
+col1, col2, col3, _ = st.columns([1.8, 1.8, 1.5, 3])
+
+with col1:
+    # BUTTON 1: GENERATE QUESTIONS
+    generate_clicked = st.button("🚀 Generate Questions", key="main_gen", type="primary")
+
+# Logic for Question Generation
+if generate_clicked:
     if not api_key:
         st.error("API Key missing! Check your Secrets.")
     elif not topic:
@@ -111,7 +119,6 @@ if st.button("🚀 Generate Questions", key="main_gen", type="primary"):
                     st.session_state.quiz_data = new_quiz
                     st.session_state.last_level = level
                     st.session_state.last_topic = topic
-                    # Set initial state: all answers hidden
                     st.session_state.revealed_answers = [False] * len(new_quiz)
                     st.rerun()
                 else:
@@ -123,39 +130,30 @@ if st.button("🚀 Generate Questions", key="main_gen", type="primary"):
             else:
                 st.error(f"An error occurred: {e}")
 
-st.divider()
-
-# --- 6. DISPLAY QUIZ & CONTROLS ---
+# Only render the Master Toggle and Print buttons if questions exist
 if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
-    # Ensure state array matches current quiz size
     if 'revealed_answers' not in st.session_state or len(st.session_state.revealed_answers) != quiz_len:
         st.session_state.revealed_answers = [False] * quiz_len
 
-    # Topic Meta Header
-    st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
+    all_revealed = all(st.session_state.revealed_answers)
+    master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
 
-    # ACTION BAR: Compact, matching button sizes
-    col1, col2, _ = st.columns([1.5, 1.5, 5]) # Compact columns pushing buttons to the left
-    
-    with col1:
-        # CONTROL BUTTON 1: MASTER REVEAL / HIDE ALL
-        all_revealed = all(st.session_state.revealed_answers)
-        master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
-        
+    with col2:
+        # BUTTON 2: MASTER REVEAL / HIDE ALL
         if st.button(master_label, key="master_toggle_button"):
             st.session_state.revealed_answers = [not all_revealed] * quiz_len
             st.rerun()
 
-    with col2:
-        # CONTROL BUTTON 2: SAVE TO PDF (Styled to match standard Streamlit buttons)
+    with col3:
+        # BUTTON 3: SAVE TO PDF
         st.components.v1.html("""
             <button onclick="window.parent.print()" style="
                 background-color: #004b95;
                 color: white;
                 border: none;
-                padding: 6px 16px;
+                padding: 6px 14px;
                 border-radius: 8px;
                 font-weight: 400;
                 font-size: 14px;
@@ -164,12 +162,15 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+                white-space: nowrap;
             ">🖨️ Save as PDF</button>
         """, height=45)
 
-    st.write("") # Spacing
+    st.divider()
 
-    # QUESTIONS & ANSWERS LOOP
+    # --- 6. QUESTIONS DISPLAY LOOP ---
+    st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
+
     for i, item in enumerate(st.session_state.quiz_data):
         st.markdown('<div class="pdf-card">', unsafe_allow_html=True)
         
@@ -201,4 +202,5 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         st.divider()
 
 else:
+    st.divider()
     st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
