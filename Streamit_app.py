@@ -1,6 +1,5 @@
 import streamlit as st
 import google.generativeai as genai
-import requests
 import re
 
 # --- 1. PAGE CONFIG & STYLING ---
@@ -75,7 +74,6 @@ st.markdown("""
 
 # --- 2. API SETUP & SECRETS ---
 api_key = st.secrets.get("GEMINI_API_KEY", "")
-apps_script_url = st.secrets.get("APPS_SCRIPT_URL", "")
 
 # --- 3. HELPER FUNCTIONS ---
 def is_arabic(text):
@@ -96,11 +94,11 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 5. MAIN PAGE & SINGLE-ROW ACTION BUTTONS ---
+# --- 5. MAIN PAGE & HORIZONTAL ACTION BAR ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-# Create 4 columns so all buttons fit neatly in one horizontal row
-col1, col2, col3, col4 = st.columns([1.8, 1.8, 1.8, 2.2])
+# Create 3 columns for a clean, perfectly aligned action bar
+col1, col2, col3 = st.columns([2, 2, 2])
 
 with col1:
     # BUTTON 1: GENERATE QUESTIONS
@@ -158,7 +156,7 @@ if generate_clicked:
             else:
                 st.error(f"An error occurred: {e}")
 
-# Render Master Toggle, Print, and Google Form buttons alongside Generate
+# Render Master Toggle and Print buttons alongside Generate
 if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
@@ -180,41 +178,7 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         if print_clicked:
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
 
-    with col4:
-        # BUTTON 4: EXPORT TO GOOGLE FORM
-        export_gform_clicked = st.button("📝 Export to Google Form", key="export_gform_btn", use_container_width=True)
-        # Handle Google Form Export Logic
-    if export_gform_clicked:
-        if not apps_script_url:
-            st.error("Apps Script URL missing from Streamlit Secrets!")
-        else:
-            with st.spinner("Building Google Form in your Drive..."):
-                payload = {
-                    "level": st.session_state.get('last_level', 'GCSE'),
-                    "topic": st.session_state.get('last_topic', 'Retrieval Practice'),
-                    "questions": st.session_state.quiz_data
-                }
-                
-                try:
-                    # Added allow_redirects=True to handle Google Script redirects
-                    res = requests.post(
-                        apps_script_url, 
-                        json=payload, 
-                        headers={"Content-Type": "application/json"},
-                        allow_redirects=True, 
-                        timeout=25
-                    )
-                    
-                    result_data = res.json()
-                    
-                    if result_data.get("status") == "success":
-                        st.success("Google Form Created Successfully!")
-                        st.markdown(f"[👉 Click here to open and edit your Google Form]({result_data['editUrl']})")
-                    else:
-                        st.error(f"Apps Script Error: {result_data.get('message')}")
-                except Exception as err:
-                    st.error(f"Failed to connect to Apps Script: {err}")
-
+    st.divider()
 
     # --- 6. QUESTIONS DISPLAY LOOP ---
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
