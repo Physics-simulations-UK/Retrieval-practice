@@ -183,8 +183,7 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     with col4:
         # BUTTON 4: EXPORT TO GOOGLE FORM
         export_gform_clicked = st.button("📝 Export to Google Form", key="export_gform_btn", use_container_width=True)
-
-    # Handle Google Form Export Logic
+        # Handle Google Form Export Logic
     if export_gform_clicked:
         if not apps_script_url:
             st.error("Apps Script URL missing from Streamlit Secrets!")
@@ -197,8 +196,15 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
                 }
                 
                 try:
-                    # Send payload to Google Apps Script Web App
-                    res = requests.post(apps_script_url, json=payload, timeout=20)
+                    # Added allow_redirects=True to handle Google Script redirects
+                    res = requests.post(
+                        apps_script_url, 
+                        json=payload, 
+                        headers={"Content-Type": "application/json"},
+                        allow_redirects=True, 
+                        timeout=25
+                    )
+                    
                     result_data = res.json()
                     
                     if result_data.get("status") == "success":
@@ -209,7 +215,6 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
                 except Exception as err:
                     st.error(f"Failed to connect to Apps Script: {err}")
 
-    st.divider()
 
     # --- 6. QUESTIONS DISPLAY LOOP ---
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
