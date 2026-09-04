@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import requests
 import re
 
 # --- 1. PAGE CONFIG & STYLING ---
@@ -8,7 +9,7 @@ st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon
 # CSS to standardize buttons and enforce high-contrast print styling
 st.markdown("""
     <style>
-    /* Uniform height & font for all top buttons */
+    /* Uniform height & font for all top action buttons */
     .stButton > button {
         height: 40px !important;
         font-size: 14px !important;
@@ -27,7 +28,6 @@ st.markdown("""
 
     /* PRINT STYLESHEET (Controls layout and contrast when exporting to PDF) */
     @media print {
-        /* Hide sidebar, buttons, and Streamlit header/footer */
         section[data-testid="stSidebar"],
         button,
         header,
@@ -73,8 +73,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. API SETUP ---
+# --- 2. API SETUP & SECRETS ---
 api_key = st.secrets.get("GEMINI_API_KEY", "")
+apps_script_url = st.secrets.get("APPS_SCRIPT_URL", "")
 
 # --- 3. HELPER FUNCTIONS ---
 def is_arabic(text):
@@ -98,8 +99,8 @@ with st.sidebar:
 # --- 5. MAIN PAGE & SINGLE-ROW ACTION BUTTONS ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-# Create 3 equal columns for side-by-side native Streamlit buttons
-col1, col2, col3, _ = st.columns([1.8, 1.8, 1.8, 2.5])
+# Create 4 columns so all buttons fit neatly in one horizontal row
+col1, col2, col3, col4 = st.columns([1.8, 1.8, 1.8, 2.2])
 
 with col1:
     # BUTTON 1: GENERATE QUESTIONS
@@ -157,7 +158,7 @@ if generate_clicked:
             else:
                 st.error(f"An error occurred: {e}")
 
-# Render Master Toggle and Print buttons alongside Generate as native Streamlit buttons
+# Render Master Toggle, Print, and Google Form buttons alongside Generate
 if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
@@ -178,6 +179,35 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         print_clicked = st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True)
         if print_clicked:
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
+
+    with col4:
+        # BUTTON 4: EXPORT TO GOOGLE FORM
+        export_gform_clicked = st.button("📝 Export to Google Form", key="export_gform_btn", use_container_width=True)
+
+    # Handle Google Form Export Logic
+    if export_gform_clicked:
+        if not apps_script_url:
+            st.error("Apps Script URL missing from Streamlit Secrets!")
+        else:
+            with st.spinner("Building Google Form in your Drive..."):
+                payload = {
+                    "level": st.session_state.get('last_level', 'GCSE'),
+                    "topic": st.session_state.get('last_topic', 'Retrieval Practice'),
+                    "questions": st.session_state.quiz_data
+                }
+                
+                try:
+                    # Send payload to Google Apps Script Web App
+                    res = requests.post(apps_script_url, json=payload, timeout=20)
+                    result_data = res.json()
+                    
+                    if result_data.get("status") == "success":
+                        st.success("Google Form Created Successfully!")
+                        st.markdown(f"[👉 Click here to open and edit your Google Form]({result_data['editUrl']})")
+                    else:
+                        st.error(f"Apps Script Error: {result_data.get('message')}")
+                except Exception as err:
+                    st.error(f"Failed to connect to Apps Script: {err}")
 
     st.divider()
 
