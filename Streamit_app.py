@@ -150,17 +150,16 @@ def create_google_form(topic, questions):
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Configure form as Quiz with IMMEDIATE feedback release for student self-assessment
+    # 2. Configure form as Quiz
     batch_requests = [
         {
             "updateSettings": {
                 "settings": {
                     "quizSettings": {
-                        "isQuiz": True,
-                        "isQuizImmediateGrades": True
+                        "isQuiz": True
                     }
                 },
-                "updateMask": "quizSettings.isQuiz,quizSettings.isQuizImmediateGrades"
+                "updateMask": "quizSettings.isQuiz"
             }
         }
     ]
