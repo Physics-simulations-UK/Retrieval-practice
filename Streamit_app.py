@@ -255,9 +255,9 @@ def create_google_form(topic, questions):
                     "📋 INSTRUCTION GUIDE FOR STUDENTS:\n\n"
                     "1. On FIRST submission: Complete questions 1 to " + str(total_q_count) + ", leave this section blank, and click SUBMIT.\n"
                     "2. Click 'View score' on the confirmation page to review the Mark Scheme for each question.\n"
-                    "3. Re-open/edit your response and evaluate your work in the grid below:\n"
-                    "   • Select 'Earned Mark' if your answer matched the key scheme points.\n"
-                    "   • Select 'Incorrect / No Mark' if key elements were missing.\n"
+                    "3. Go back to the original form and click Edit your response and use the grid below to give yourself marks for each question:\n"
+                    "   • Select 'Earned Mark' if your answer matched the mark scheme.\n"
+                    "   • Select 'Incorrect / No Mark' if your answer does not match the mark scheme.\n"
                     "4. Submit the form again to send your score to Google Classroom."
                 ),
                 "questionGroupItem": {
