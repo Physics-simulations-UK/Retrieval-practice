@@ -78,7 +78,7 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. COOKIE & OAUTH MANAGER ---
+# --- 3. COOKIES & OAUTH setup ---
 cookie_manager = stx.CookieManager()
 
 SCOPES = [
@@ -102,7 +102,7 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# Retrieve token from cookie if available
+# 1. Load saved credentials from cookie
 saved_token = cookie_manager.get(cookie="g_auth_token")
 if saved_token and "credentials" not in st.session_state:
     try:
@@ -111,7 +111,7 @@ if saved_token and "credentials" not in st.session_state:
     except Exception:
         pass
 
-# Process incoming OAuth callback code
+# 2. Check if returning from Google Auth with code
 if "code" in st.query_params:
     try:
         auth_code = st.query_params["code"]
@@ -119,15 +119,15 @@ if "code" in st.query_params:
         flow.fetch_token(code=auth_code)
         creds = flow.credentials
         
-        # Store in session state and save persistent cookie
+        # Save credentials in session and cookie
         st.session_state["credentials"] = creds
-        creds_json = creds.to_json()
-        cookie_manager.set("g_auth_token", creds_json, key="set_token_cookie")
+        cookie_manager.set("g_auth_token", creds.to_json(), key="set_token_cookie")
         
+        # Clean query parameters
         st.query_params.clear()
         st.toast("✅ Google Account Connected!", icon="🎉")
     except Exception as e:
-        st.error(f"Auth exchange failed: {e}")
+        st.error(f"Authentication failed: {e}")
 
 def create_google_form(credentials, topic, questions):
     forms_service = build('forms', 'v1', credentials=credentials)
@@ -260,7 +260,8 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
         else:
             flow = get_oauth_flow()
             auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
-            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
+            # Render link directly with HTML to prevent iframe navigation loops
+            st.markdown(f'<a href="{auth_url}" target="_self" style="text-decoration:none;"><button style="width:100%; height:40px; border-radius:8px; background-color:#004b95; color:white; border:none; font-weight:500; cursor:pointer;">🔑 Connect Google Drive</button></a>', unsafe_allow_html=True)
 
     st.divider()
 
@@ -296,4 +297,11 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
 
 else:
     st.divider()
-    st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
+    # Also provide a connect option before generating questions so teachers can log in once at the start
+    if "credentials" not in st.session_state:
+        flow = get_oauth_flow()
+        auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+        st.info("💡 Connect your Google Drive once below or generate questions first:")
+        st.markdown(f'<a href="{auth_url}" target="_self" style="text-decoration:none;"><button style="padding:10px 20px; border-radius:8px; background-color:#004b95; color:white; border:none; font-weight:500; cursor:pointer;">🔑 Connect Google Drive</button></a>', unsafe_allow_html=True)
+    else:
+        st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
