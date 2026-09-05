@@ -98,16 +98,22 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# Handle incoming OAuth callback code
-if "code" in st.query_params and "credentials" not in st.session_state:
+# --- EARLIEST OAUTH CODE CAPTURE ---
+# Handle incoming OAuth callback code immediately at startup
+if "code" in st.query_params:
     try:
+        auth_code = st.query_params["code"]
         flow = get_oauth_flow()
-        flow.fetch_token(code=st.query_params["code"])
+        flow.fetch_token(code=auth_code)
+        
+        # Save credentials in session state
         st.session_state["credentials"] = flow.credentials
+        
+        # Clear query params to clean the URL without reloading state
         st.query_params.clear()
-        st.toast("✅ Connected to Google Drive!", icon="🎉")
+        st.toast("🎉 Connected to Google Drive!", icon="✅")
     except Exception as e:
-        st.error(f"Authentication failed: {e}")
+        st.error(f"Authentication error: {e}")
 
 def create_google_form(credentials, topic, questions):
     """Creates a Google Form directly in the user's Drive."""
@@ -241,7 +247,7 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
                         st.error(f"Failed to create Google Form: {e}")
         else:
             flow = get_oauth_flow()
-            auth_url, _ = flow.authorization_url(prompt='consent')
+            auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
             st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
 
     st.divider()
