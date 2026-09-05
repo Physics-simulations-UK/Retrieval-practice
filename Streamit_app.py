@@ -38,7 +38,7 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. OAUTH SETUP & INITIAL AUTHORIZATION CHECK ---
+# --- 3. GOOGLE OAUTH FLOW ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
@@ -61,13 +61,12 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# Process OAuth response parameter if redirected back from Google
+# CAPTURE REDIRECT CODE IMMEDIATELY
 if "code" in st.query_params and not st.session_state.credentials:
     try:
         flow = get_oauth_flow()
         flow.fetch_token(code=st.query_params["code"])
         st.session_state.credentials = flow.credentials
-        # Clear url query params so code isn't re-used on refresh
         st.query_params.clear()
         st.toast("✅ Google Account Connected!", icon="🎉")
     except Exception as e:
@@ -78,11 +77,9 @@ def create_google_form(credentials, topic, questions):
     forms_service = build('forms', 'v1', credentials=credentials)
     form_title = f"{topic} - Retrieval Practice"
     
-    # Create base form
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # Configure Quiz mode and add questions
     batch_requests = [
         {
             "updateSettings": {
@@ -107,13 +104,30 @@ def create_google_form(credentials, topic, questions):
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
     return f"https://docs.google.com/forms/d/{form_id}/edit"
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (AUTHENTICATION & TOPIC SELECTOR) ---
 with st.sidebar:
     try:
         st.image("IMG_0202.png", use_container_width=True)
     except Exception:
         pass
     
+    st.divider()
+    st.title("🔑 Google Integration")
+    
+    if st.session_state.credentials:
+        st.success(" Google Drive Connected")
+    else:
+        try:
+            flow = get_oauth_flow()
+            auth_url, _ = flow.authorization_url(
+                prompt='consent',
+                access_type='offline',
+                include_granted_scopes='true'
+            )
+            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
+        except Exception as err:
+            st.error(f"OAuth config error: {err}")
+
     st.divider()
     st.title("🎯 Topic Selector")
     level = st.selectbox("Exam Level:", ["GCSE", "A Level"])
@@ -207,13 +221,7 @@ if st.session_state.quiz_data:
                     except Exception as e:
                         st.error(f"Failed to create Google Form: {e}")
         else:
-            flow = get_oauth_flow()
-            auth_url, _ = flow.authorization_url(
-                prompt='select_account consent',
-                access_type='offline',
-                include_granted_scopes='true'
-            )
-            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
+            st.warning("Connect Google Drive in Sidebar first")
 
     st.divider()
 
