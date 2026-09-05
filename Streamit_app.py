@@ -1,14 +1,14 @@
 import streamlit as st
 import google.generativeai as genai
 import re
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
 
 # --- 1. PAGE CONFIG & STYLING ---
 st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon="✅")
 
-# CSS to standardize buttons and enforce high-contrast print styling
 st.markdown("""
     <style>
-    /* Uniform height & font for all top action buttons */
     .stButton > button {
         height: 40px !important;
         font-size: 14px !important;
@@ -25,7 +25,6 @@ st.markdown("""
         margin-top: 10px;
     }
 
-    /* PRINT STYLESHEET (Controls layout and contrast when exporting to PDF) */
     @media print {
         section[data-testid="stSidebar"],
         button,
@@ -41,14 +40,12 @@ st.markdown("""
             color: #000000 !important;
         }
 
-        /* Force ALL text to render in solid dark print font */
         h1, h2, h3, h4, p, span, div, strong, em {
             color: #000000 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
 
-        /* Override st.info / stAlert soft grey styling for full contrast print */
         [data-testid="stAlert"] {
             background-color: #f8fafc !important;
             color: #000000 !important;
@@ -72,13 +69,71 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. API SETUP & SECRETS ---
+# --- 2. SECRETS & HELPER FUNCTIONS ---
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-# --- 3. HELPER FUNCTIONS ---
 def is_arabic(text):
-    """Detects if string contains Arabic characters."""
     return bool(re.search(r'[\u0600-\u06FF]', text))
+
+# --- 3. GOOGLE OAUTH & FORMS API INTEGRATION ---
+SCOPES = [
+    'https://www.googleapis.com/auth/forms.body',
+    'https://www.googleapis.com/auth/drive.file'
+]
+
+def get_oauth_flow():
+    """Builds the OAuth flow object using secrets."""
+    client_config = {
+        "web": {
+            "client_id": st.secrets["google_oauth"]["client_id"],
+            "client_secret": st.secrets["google_oauth"]["client_secret"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [st.secrets["google_oauth"]["redirect_uri"]]
+        }
+    }
+    return Flow.from_client_config(
+        client_config,
+        scopes=SCOPES,
+        redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
+    )
+
+# Handle OAuth redirect token exchange
+if "code" in st.query_params:
+    try:
+        flow = get_oauth_flow()
+        flow.fetch_token(code=st.query_params["code"])
+        st.session_state["credentials"] = flow.credentials
+        st.query_params.clear()
+        st.success("Successfully authenticated with Google!")
+    except Exception as e:
+        st.error(f"Authentication failed: {e}")
+
+def create_google_form(credentials, topic, questions):
+    """Creates a Google Form directly in the user's Drive."""
+    forms_service = build('forms', 'v1', credentials=credentials)
+    
+    # 1. Create a blank form
+    form_title = f"{topic} - Retrieval Practice"
+    form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
+    form_id = form["formId"]
+    
+    # 2. Add questions and mark scheme as descriptions
+    requests = []
+    for i, q in enumerate(questions):
+        requests.append({
+            "createItem": {
+                "item": {
+                    "title": q["q"],
+                    "description": f"Mark Scheme Guidance:\n{q['a']}",
+                    "textItem": {}
+                },
+                "location": {"index": i}
+            }
+        })
+    
+    forms_service.forms().batchUpdate(formId=form_id, body={"requests": requests}).execute()
+    return f"https://docs.google.com/forms/d/{form_id}/edit"
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
@@ -97,14 +152,11 @@ with st.sidebar:
 # --- 5. MAIN PAGE & HORIZONTAL ACTION BAR ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
-# Create 3 columns for a clean, perfectly aligned action bar
-col1, col2, col3 = st.columns([2, 2, 2])
+col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
 
 with col1:
-    # BUTTON 1: GENERATE QUESTIONS
     generate_clicked = st.button("🚀 Generate Questions", key="main_gen", type="primary", use_container_width=True)
 
-# Logic for Question Generation
 if generate_clicked:
     if not api_key:
         st.error("API Key missing! Check your Secrets.")
@@ -121,7 +173,7 @@ if generate_clicked:
                 f"strictly following the current Edexcel Specification. "
                 f"The 'Answer' side must include specific Edexcel marking key words as found in official mark schemes. "
                 f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
-                f"In the Answer section, include a brief 'Common Misconception' tip in brackets if applicable, focusing on misconceptions specifically mentioned in Examiner Reports. "
+                f"In the Answer section, include a brief 'Common Misconception' tip in brackets if applicable. "
                 f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
                 f"No bolding, no numbers, no intro text. Just the lines with |."
             )
@@ -156,7 +208,7 @@ if generate_clicked:
             else:
                 st.error(f"An error occurred: {e}")
 
-# Render Master Toggle and Print buttons alongside Generate
+# Action Buttons Bar when Quiz Data Exists
 if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
@@ -167,16 +219,33 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
 
     with col2:
-        # BUTTON 2: MASTER REVEAL / HIDE ALL
         if st.button(master_label, key="master_toggle_button", use_container_width=True):
             st.session_state.revealed_answers = [not all_revealed] * quiz_len
             st.rerun()
 
     with col3:
-        # BUTTON 3: SAVE TO PDF
         print_clicked = st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True)
         if print_clicked:
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
+
+    with col4:
+        # GOOGLE FORMS EXPORT LOGIC
+        if "credentials" in st.session_state:
+            if st.button("📝 Export to Google Forms", key="export_forms_btn", use_container_width=True):
+                with st.spinner("Creating Google Form in your Drive..."):
+                    try:
+                        form_url = create_google_form(
+                            st.session_state["credentials"],
+                            st.session_state.get("last_topic", "Retrieval Practice"),
+                            st.session_state.quiz_data
+                        )
+                        st.success(f"Form Created! [Click here to open your Form]({form_url})")
+                    except Exception as e:
+                        st.error(f"Failed to create Google Form: {e}")
+        else:
+            flow = get_oauth_flow()
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
 
     st.divider()
 
@@ -186,14 +255,12 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
     for i, item in enumerate(st.session_state.quiz_data):
         st.markdown('<div class="pdf-card">', unsafe_allow_html=True)
         
-        # --- Question ---
         q_text = item['q']
         if is_arabic(q_text):
             st.markdown(f'<div dir="rtl" style="text-align: right;"><h3>Q{i+1}: {q_text}</h3></div>', unsafe_allow_html=True)
         else:
             st.markdown(f"### Q{i+1}: {q_text}")
 
-        # --- Individual Answer Toggle Button ---
         is_revealed = st.session_state.revealed_answers[i]
         btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
         
@@ -201,7 +268,6 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
             st.session_state.revealed_answers[i] = not is_revealed
             st.rerun()
 
-        # --- Answer Output ---
         if st.session_state.revealed_answers[i]:
             st.write("**Mark Scheme / Guidance:**")
             a_text = item['a']
