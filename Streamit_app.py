@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import re
-from google_auth_oauthlib.flow import Flow
+import requests
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -36,64 +36,77 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. GOOGLE OAUTH HANDLING ---
+# --- 3. DIRECT GOOGLE OAUTH HANDLER (NO PKCE RESET ERRORS) ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
 ]
 
-def get_oauth_flow():
-    client_config = {
-        "web": {
-            "client_id": st.secrets["google_oauth"]["client_id"],
-            "client_secret": st.secrets["google_oauth"]["client_secret"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [st.secrets["google_oauth"]["redirect_uri"]]
-        }
-    }
-    # autogenerate state=None to prevent PKCE state mismatch loops on redirects
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=SCOPES,
-        redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
+CLIENT_ID = st.secrets["google_oauth"]["client_id"]
+CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
+REDIRECT_URI = st.secrets["google_oauth"]["redirect_uri"]
+
+def get_auth_url():
+    """Generates pure OAuth URL without PKCE dependency."""
+    scope_str = "%20".join(SCOPES)
+    return (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={CLIENT_ID}&"
+        f"redirect_uri={REDIRECT_URI}&"
+        f"response_type=code&"
+        f"scope={scope_str}&"
+        f"access_type=offline&"
+        f"prompt=consent"
     )
-    return flow
+
+def exchange_code_for_tokens(auth_code):
+    """Exchanges return code directly via HTTP POST to avoid missing code verifier errors."""
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "code": auth_code,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+    res = requests.post(token_url, data=payload)
+    if res.status_code == 200:
+        return res.json()
+    else:
+        raise Exception(f"Token exchange failed: {res.text}")
 
 # PERSISTENT CREDENTIAL RECOVERY
-# 1. Check if token already stored in session
-creds_dict = st.session_state.get("google_creds", None)
+if "google_creds" not in st.session_state:
+    st.session_state.google_creds = None
 
-# 2. Check if coming back from Google redirect with ?code=
-if not creds_dict and "code" in st.query_params:
+# Catch ?code= from Google redirect
+if not st.session_state.google_creds and "code" in st.query_params:
     try:
-        flow = get_oauth_flow()
-        # Fetch token without strictly enforcing state check across session restarts
-        flow.fetch_token(code=st.query_params["code"])
-        c = flow.credentials
+        auth_code = st.query_params["code"]
+        tokens = exchange_code_for_tokens(auth_code)
         
-        creds_dict = {
-            'token': c.token,
-            'refresh_token': c.refresh_token,
-            'token_uri': c.token_uri,
-            'client_id': c.client_id,
-            'client_secret': c.client_secret,
-            'scopes': c.scopes
+        st.session_state.google_creds = {
+            'token': tokens.get('access_token'),
+            'refresh_token': tokens.get('refresh_token'),
+            'token_uri': "https://oauth2.googleapis.com/token",
+            'client_id': CLIENT_ID,
+            'client_secret': CLIENT_SECRET,
+            'scopes': SCOPES
         }
-        st.session_state["google_creds"] = creds_dict
-        st.toast("✅ Google Drive Connected Successfully!", icon="🎉")
+        st.query_params.clear()
+        st.rerun()
     except Exception as e:
         st.error(f"Authentication Error: {e}")
 
 def get_valid_credentials():
-    if "google_creds" in st.session_state and st.session_state["google_creds"]:
-        return Credentials(**st.session_state["google_creds"])
+    if st.session_state.google_creds and st.session_state.google_creds.get('token'):
+        return Credentials(**st.session_state.google_creds)
     return None
 
 def create_google_form(topic, questions):
     creds = get_valid_credentials()
     if not creds:
-        raise Exception("Not connected to Google.")
+        raise Exception("Not connected to Google Account.")
 
     forms_service = build('forms', 'v1', credentials=creds)
     form_title = f"{topic} - Retrieval Practice"
@@ -141,21 +154,10 @@ with st.sidebar:
     if active_creds:
         st.success("✅ Connected to Google Drive")
         if st.button("Disconnect", key="logout_btn"):
-            st.session_state["google_creds"] = None
-            if "code" in st.query_params:
-                del st.query_params["code"]
+            st.session_state.google_creds = None
             st.rerun()
     else:
-        try:
-            flow = get_oauth_flow()
-            auth_url, _ = flow.authorization_url(
-                prompt='consent',
-                access_type='offline',
-                include_granted_scopes='true'
-            )
-            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
-        except Exception as err:
-            st.error(f"Config error: {err}")
+        st.link_button("🔑 Connect Google Drive", get_auth_url(), use_container_width=True)
 
     st.divider()
     st.title("🎯 Topic Selector")
