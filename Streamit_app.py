@@ -171,13 +171,13 @@ def create_google_form(topic, questions):
         batch_requests.append({
             "createItem": {
                 "item": {
-                    "title": clean_q,
+                    "title": f"Q{i+1}: {clean_q}",
                     "questionItem": {
                         "question": {
                             "required": True,
                             "grading": {
                                 "generalFeedback": {
-                                    "text": f"Mark Scheme Guidance:\n{clean_a}"
+                                    "text": f"OFFICIAL MARK SCHEME:\n{clean_a}"
                                 }
                             },
                             "textQuestion": {
@@ -190,38 +190,51 @@ def create_google_form(topic, questions):
             }
         })
 
-    # 4. Add Individual Weighted Choice Questions (1 Point Per Mark Earned)
-    # This structure gives exact numeric credit for student self-assessments that imports to Google Classroom
+    # 4. Streamlined Self-Assessment Grid with Embedded Instructions
     total_q_count = len(questions)
     
-    for score in range(1, total_q_count + 1):
-        batch_requests.append({
-            "createItem": {
-                "item": {
-                    "title": f"Self-Assessment Point #{score}",
-                    "description": f"Did you earn Mark #{score} based on the Mark Scheme?",
-                    "questionItem": {
-                        "question": {
+    grid_rows = [{"title": f"Question {i+1}"} for i in range(total_q_count)]
+    grid_cols = [{"value": "Earned Mark"}, {"value": "Incorrect / No Mark"}]
+    
+    batch_requests.append({
+        "createItem": {
+            "item": {
+                "title": f"FINAL STEP — Self-Assessment Grid (Total Marks: {total_q_count})",
+                "description": (
+                    "📋 INSTRUCTION GUIDE FOR STUDENTS:\n\n"
+                    "1. On FIRST submission: Complete questions 1 to " + str(total_q_count) + ", leave this section blank, and click SUBMIT.\n"
+                    "2. Click 'View score' on the confirmation page to review the Mark Scheme for each question.\n"
+                    "3. Re-open/edit your response and evaluate your work in the grid below:\n"
+                    "   • Select 'Earned Mark' if your answer matched the key scheme points.\n"
+                    "   • Select 'Incorrect / No Mark' if key elements were missing.\n"
+                    "4. Submit the form again to send your score to Google Classroom."
+                ),
+                "questionGroupItem": {
+                    "questions": [
+                        {
                             "required": False,
+                            "rowQuestion": {
+                                "title": row["title"]
+                            },
                             "grading": {
                                 "pointValue": 1,
                                 "correctAnswers": {
-                                    "answers": [{"value": "Yes"}]
+                                    "answers": [{"value": "Earned Mark"}]
                                 }
-                            },
-                            "choiceQuestion": {
-                                "type": "RADIO",
-                                "options": [
-                                    {"value": "Yes"},
-                                    {"value": "No"}
-                                ]
                             }
+                        } for row in grid_rows
+                    ],
+                    "grid": {
+                        "columns": {
+                            "type": "RADIO",
+                            "options": grid_cols
                         }
                     }
-                },
-                "location": {"index": total_q_count + (score - 1)}
-            }
-        })
+                }
+            },
+            "location": {"index": total_q_count}
+        }
+    })
 
     # Execute Batch Request
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
