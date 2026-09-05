@@ -35,6 +35,23 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
+def clean_latex_for_forms(text):
+    """Strips LaTeX dollar signs and converts common LaTeX formatting for Google Forms."""
+    if not text:
+        return text
+    # Remove single and double dollar signs ($E=mc^2$ -> E=mc^2)
+    cleaned = re.sub(r'\$+(.*?)\$+', r'\1', text)
+    replacements = {
+        r'\times': '×',
+        r'\div': '÷',
+        r'\pm': '±',
+        r'\degree': '°',
+        r'\rightarrow': '→',
+    }
+    for latex, unicode_char in replacements.items():
+        cleaned = cleaned.replace(latex, unicode_char)
+    return cleaned
+
 # --- 3. DIRECT GOOGLE OAUTH HANDLER ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
@@ -143,18 +160,21 @@ def create_google_form(topic, questions):
         }
     ]
     
-    # 3. Add questions with post-submission feedback only
+    # 3. Add questions with cleaned text and post-submission feedback only
     for i, q in enumerate(questions):
+        clean_q = clean_latex_for_forms(q["q"])
+        clean_a = clean_latex_for_forms(q["a"])
+
         batch_requests.append({
             "createItem": {
                 "item": {
-                    "title": q["q"],
+                    "title": clean_q,
                     "questionItem": {
                         "question": {
                             "required": True,
                             "grading": {
                                 "generalFeedback": {
-                                    "text": f"Mark Scheme Guidance:\n{q['a']}"
+                                    "text": f"Mark Scheme Guidance:\n{clean_a}"
                                 }
                             },
                             "textQuestion": {
