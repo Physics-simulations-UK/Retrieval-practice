@@ -69,13 +69,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SECRETS & HELPER FUNCTIONS ---
+# --- 2. SECRETS, HELPER FUNCTIONS & EARLY OAUTH CATCH ---
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. GOOGLE OAUTH & FORMS API INTEGRATION ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
@@ -98,8 +97,8 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# Process OAuth response parameter if present in query string
-if "code" in st.query_params:
+# CRITICAL: Catch Google's return 'code' before anything else renders or triggers a rerun
+if "code" in st.query_params and "credentials" not in st.session_state:
     try:
         flow = get_oauth_flow()
         flow.fetch_token(code=st.query_params["code"])
@@ -133,7 +132,7 @@ def create_google_form(credentials, topic, questions):
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": requests}).execute()
     return f"https://docs.google.com/forms/d/{form_id}/edit"
 
-# --- 4. SIDEBAR ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
     try:
         st.image("IMG_0202.png", use_container_width=True)
@@ -147,7 +146,7 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 5. MAIN PAGE & ACTION BAR ---
+# --- 4. MAIN PAGE & ACTION BAR ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
 col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
@@ -250,7 +249,7 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
 
     st.divider()
 
-    # --- 6. QUESTIONS DISPLAY LOOP ---
+    # --- 5. QUESTIONS DISPLAY LOOP ---
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
 
     for i, item in enumerate(st.session_state.quiz_data):
