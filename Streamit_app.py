@@ -1,10 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import re
-import json
-import extra_streamlit_components as stx
 from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 # --- 1. PAGE CONFIG & STYLING ---
@@ -78,15 +75,14 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. COOKIES & OAUTH setup ---
-cookie_manager = stx.CookieManager()
-
+# --- 3. GOOGLE OAUTH & FORMS API INTEGRATION ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
 ]
 
 def get_oauth_flow():
+    """Builds the OAuth flow object using secrets."""
     client_config = {
         "web": {
             "client_id": st.secrets["google_oauth"]["client_id"],
@@ -102,35 +98,21 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# 1. Load saved credentials from cookie
-saved_token = cookie_manager.get(cookie="g_auth_token")
-if saved_token and "credentials" not in st.session_state:
-    try:
-        creds_dict = json.loads(saved_token)
-        st.session_state["credentials"] = Credentials.from_authorized_user_info(creds_dict, SCOPES)
-    except Exception:
-        pass
-
-# 2. Check if returning from Google Auth with code
+# Process OAuth response parameter if present in query string
 if "code" in st.query_params:
     try:
-        auth_code = st.query_params["code"]
         flow = get_oauth_flow()
-        flow.fetch_token(code=auth_code)
-        creds = flow.credentials
-        
-        # Save credentials in session and cookie
-        st.session_state["credentials"] = creds
-        cookie_manager.set("g_auth_token", creds.to_json(), key="set_token_cookie")
-        
-        # Clean query parameters
+        flow.fetch_token(code=st.query_params["code"])
+        st.session_state["credentials"] = flow.credentials
         st.query_params.clear()
         st.toast("✅ Google Account Connected!", icon="🎉")
     except Exception as e:
-        st.error(f"Authentication failed: {e}")
+        st.error(f"Authentication error: {e}")
 
 def create_google_form(credentials, topic, questions):
+    """Creates a Google Form directly in the user's Drive."""
     forms_service = build('forms', 'v1', credentials=credentials)
+    
     form_title = f"{topic} - Retrieval Practice"
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
@@ -165,7 +147,7 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 5. MAIN PAGE & HORIZONTAL ACTION BAR ---
+# --- 5. MAIN PAGE & ACTION BAR ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
 col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
@@ -259,9 +241,12 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
                         st.error(f"Failed to create Google Form: {e}")
         else:
             flow = get_oauth_flow()
-            auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
-            # Render link directly with HTML to prevent iframe navigation loops
-            st.markdown(f'<a href="{auth_url}" target="_self" style="text-decoration:none;"><button style="width:100%; height:40px; border-radius:8px; background-color:#004b95; color:white; border:none; font-weight:500; cursor:pointer;">🔑 Connect Google Drive</button></a>', unsafe_allow_html=True)
+            auth_url, _ = flow.authorization_url(
+                prompt='select_account consent',
+                access_type='offline',
+                include_granted_scopes='true'
+            )
+            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
 
     st.divider()
 
@@ -297,11 +282,4 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
 
 else:
     st.divider()
-    # Also provide a connect option before generating questions so teachers can log in once at the start
-    if "credentials" not in st.session_state:
-        flow = get_oauth_flow()
-        auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
-        st.info("💡 Connect your Google Drive once below or generate questions first:")
-        st.markdown(f'<a href="{auth_url}" target="_self" style="text-decoration:none;"><button style="padding:10px 20px; border-radius:8px; background-color:#004b95; color:white; border:none; font-weight:500; cursor:pointer;">🔑 Connect Google Drive</button></a>', unsafe_allow_html=True)
-    else:
-        st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
+    st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
