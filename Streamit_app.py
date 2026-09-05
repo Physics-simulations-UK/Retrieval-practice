@@ -16,13 +16,12 @@ st.markdown("""
         font-weight: 500 !important;
         border-radius: 8px !important;
     }
-    .pdf-card {
+    .question-card {
         border: 1px solid #cbd5e1 !important;
         background-color: #ffffff !important;
-        padding: 12px 16px !important;
-        margin-bottom: 14px !important;
-        border-radius: 6px !important;
-        page-break-inside: avoid !important;
+        padding: 16px 20px !important;
+        margin-bottom: 16px !important;
+        border-radius: 8px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -134,7 +133,7 @@ def create_google_form(topic, questions):
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Add quiz settings & questions
+    # 2. Configure form as Quiz
     batch_requests = [
         {
             "updateSettings": {
@@ -144,13 +143,25 @@ def create_google_form(topic, questions):
         }
     ]
     
+    # 3. Add questions with post-submission feedback only
     for i, q in enumerate(questions):
         batch_requests.append({
             "createItem": {
                 "item": {
                     "title": q["q"],
-                    "description": f"Mark Scheme Guidance:\n{q['a']}",
-                    "textItem": {}
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "grading": {
+                                "generalFeedback": {
+                                    "text": f"Mark Scheme Guidance:\n{q['a']}"
+                                }
+                            },
+                            "textQuestion": {
+                                "paragraph": True
+                            }
+                        }
+                    }
                 },
                 "location": {"index": i}
             }
@@ -158,15 +169,13 @@ def create_google_form(topic, questions):
     
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
 
-    # 3. Move the created form into the target Drive folder
+    # 4. Move the created form into the target Drive folder
     try:
         folder_id = get_or_create_folder(drive_service, folder_name="Retrieval Practice Quizzes")
         
-        # Retrieve the current parent folder to remove it
         file = drive_service.files().get(fileId=form_id, fields='parents').execute()
         previous_parents = ",".join(file.get('parents', []))
         
-        # Move the file to the target folder
         drive_service.files().update(
             fileId=form_id,
             addParents=folder_id,
@@ -291,28 +300,29 @@ if st.session_state.quiz_data:
         else:
             st.info(" Connect Google Drive in Sidebar to Export")
 
-    st.divider()
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # --- 7. QUESTIONS DISPLAY LOOP ---
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
 
     for i, item in enumerate(st.session_state.quiz_data):
-        st.markdown('<div class="pdf-card">', unsafe_allow_html=True)
-        
         q_text = item['q']
+        is_revealed = st.session_state.revealed_answers[i]
+        btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
+
+        st.markdown('<div class="question-card">', unsafe_allow_html=True)
+        
         if is_arabic(q_text):
             st.markdown(f'<div dir="rtl" style="text-align: right;"><h3>Q{i+1}: {q_text}</h3></div>', unsafe_allow_html=True)
         else:
             st.markdown(f"### Q{i+1}: {q_text}")
 
-        is_revealed = st.session_state.revealed_answers[i]
-        btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
-        
         if st.button(f"{btn_label} Q{i+1}", key=f"individual_btn_{i}"):
             st.session_state.revealed_answers[i] = not is_revealed
             st.rerun()
 
         if st.session_state.revealed_answers[i]:
+            st.markdown("<br>", unsafe_allow_html=True)
             st.write("**Mark Scheme / Guidance:**")
             a_text = item['a']
             if is_arabic(a_text):
@@ -321,7 +331,6 @@ if st.session_state.quiz_data:
                 st.info(a_text)
                 
         st.markdown('</div>', unsafe_allow_html=True)
-        st.divider()
 
 else:
     st.divider()
