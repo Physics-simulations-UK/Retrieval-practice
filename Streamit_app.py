@@ -191,13 +191,13 @@ def create_google_form(topic, questions):
             }
         })
 
-    # 4. Add final Self-Assessment score selector for Google Classroom Grade Import
+    # 4. Add final Self-Assessment score selector with multiline text moved to description
     total_q_count = len(questions)
     batch_requests.append({
         "createItem": {
             "item": {
-                "title": (
-                    f"FINAL STEP — Self-Assessed Score (out of {total_q_count}):\n\n"
+                "title": f"FINAL STEP — Self-Assessed Score (out of {total_q_count})",
+                "description": (
                     "1. On FIRST submission, leave this question blank.\n"
                     "2. Click 'Submit', then click 'View Accuracy' to read the Mark Scheme.\n"
                     "3. Click 'Edit your response' at the top of the page to return here.\n"
