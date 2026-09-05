@@ -1,7 +1,10 @@
 import streamlit as st
 import google.generativeai as genai
 import re
+import json
+import extra_streamlit_components as stx
 from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 # --- 1. PAGE CONFIG & STYLING ---
@@ -75,14 +78,15 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. GOOGLE OAUTH & FORMS API INTEGRATION ---
+# --- 3. COOKIE & OAUTH MANAGER ---
+cookie_manager = stx.CookieManager()
+
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
 ]
 
 def get_oauth_flow():
-    """Builds the OAuth flow object using secrets."""
     client_config = {
         "web": {
             "client_id": st.secrets["google_oauth"]["client_id"],
@@ -98,27 +102,35 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# --- EARLIEST OAUTH CODE CAPTURE ---
-# Handle incoming OAuth callback code immediately at startup
+# Retrieve token from cookie if available
+saved_token = cookie_manager.get(cookie="g_auth_token")
+if saved_token and "credentials" not in st.session_state:
+    try:
+        creds_dict = json.loads(saved_token)
+        st.session_state["credentials"] = Credentials.from_authorized_user_info(creds_dict, SCOPES)
+    except Exception:
+        pass
+
+# Process incoming OAuth callback code
 if "code" in st.query_params:
     try:
         auth_code = st.query_params["code"]
         flow = get_oauth_flow()
         flow.fetch_token(code=auth_code)
+        creds = flow.credentials
         
-        # Save credentials in session state
-        st.session_state["credentials"] = flow.credentials
+        # Store in session state and save persistent cookie
+        st.session_state["credentials"] = creds
+        creds_json = creds.to_json()
+        cookie_manager.set("g_auth_token", creds_json, key="set_token_cookie")
         
-        # Clear query params to clean the URL without reloading state
         st.query_params.clear()
-        st.toast("🎉 Connected to Google Drive!", icon="✅")
+        st.toast("✅ Google Account Connected!", icon="🎉")
     except Exception as e:
-        st.error(f"Authentication error: {e}")
+        st.error(f"Auth exchange failed: {e}")
 
 def create_google_form(credentials, topic, questions):
-    """Creates a Google Form directly in the user's Drive."""
     forms_service = build('forms', 'v1', credentials=credentials)
-    
     form_title = f"{topic} - Retrieval Practice"
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
