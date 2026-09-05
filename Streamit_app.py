@@ -3,6 +3,7 @@ import google.generativeai as genai
 import re
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 
 # --- 1. PAGE CONFIG & STYLING ---
 st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon="✅")
@@ -38,14 +39,14 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. GOOGLE OAUTH FLOW ---
+# --- 3. OAUTH SETUP ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
 ]
 
 def get_oauth_flow():
-    """Builds the OAuth flow object using secrets."""
+    """Builds the OAuth flow object using Streamlit secrets."""
     client_config = {
         "web": {
             "client_id": st.secrets["google_oauth"]["client_id"],
@@ -61,25 +62,52 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# CAPTURE REDIRECT CODE IMMEDIATELY
-if "code" in st.query_params and not st.session_state.credentials:
+# --- TOP-LEVEL OAUTH REDIRECT CATCHER ---
+# This runs BEFORE any UI renders, preventing loop states
+query_params = st.query_params
+
+if "code" in query_params and not st.session_state.credentials:
     try:
         flow = get_oauth_flow()
-        flow.fetch_token(code=st.query_params["code"])
-        st.session_state.credentials = flow.credentials
+        flow.fetch_token(code=query_params["code"])
+        creds = flow.credentials
+        
+        # Save credentials into session state
+        st.session_state.credentials = {
+            'token': creds.token,
+            'refresh_token': creds.refresh_token,
+            'token_uri': creds.token_uri,
+            'client_id': creds.client_id,
+            'client_secret': creds.client_secret,
+            'scopes': creds.scopes
+        }
+        
+        # Clear code from URL to prevent token re-use errors on refresh
         st.query_params.clear()
-        st.toast("✅ Google Account Connected!", icon="🎉")
+        st.rerun()
     except Exception as e:
-        st.error(f"Authentication error: {e}")
+        st.error(f"Authentication failed: {e}")
 
-def create_google_form(credentials, topic, questions):
-    """Creates a Google Form directly in the user's Drive."""
-    forms_service = build('forms', 'v1', credentials=credentials)
+def get_user_credentials():
+    """Reconstructs Google Credentials object from session state."""
+    if st.session_state.credentials:
+        return Credentials(**st.session_state.credentials)
+    return None
+
+def create_google_form(topic, questions):
+    """Creates a Google Form directly in the logged-in teacher's Google Drive."""
+    creds = get_user_credentials()
+    if not creds:
+        raise Exception("Google Account not connected.")
+
+    forms_service = build('forms', 'v1', credentials=creds)
     form_title = f"{topic} - Retrieval Practice"
     
+    # 1. Create base form
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
+    # 2. Configure Quiz Mode and add questions
     batch_requests = [
         {
             "updateSettings": {
@@ -104,7 +132,7 @@ def create_google_form(credentials, topic, questions):
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
     return f"https://docs.google.com/forms/d/{form_id}/edit"
 
-# --- 4. SIDEBAR (AUTHENTICATION & TOPIC SELECTOR) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     try:
         st.image("IMG_0202.png", use_container_width=True)
@@ -112,11 +140,16 @@ with st.sidebar:
         pass
     
     st.divider()
-    st.title("🔑 Google Integration")
+    st.title("🔑 Account Status")
     
-    if st.session_state.credentials:
-        st.success(" Google Drive Connected")
+    user_creds = get_user_credentials()
+    if user_creds:
+        st.success(" Google Account Connected!")
+        if st.button("Disconnect Account", key="disconnect_btn"):
+            st.session_state.credentials = None
+            st.rerun()
     else:
+        st.warning("Connect your account to enable direct export to Google Forms.")
         try:
             flow = get_oauth_flow()
             auth_url, _ = flow.authorization_url(
@@ -124,7 +157,7 @@ with st.sidebar:
                 access_type='offline',
                 include_granted_scopes='true'
             )
-            st.link_button("🔑 Connect Google Drive", auth_url, use_container_width=True)
+            st.link_button("🔑 Connect Google Account", auth_url, use_container_width=True)
         except Exception as err:
             st.error(f"OAuth config error: {err}")
 
@@ -208,12 +241,11 @@ if st.session_state.quiz_data:
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
 
     with col4:
-        if st.session_state.credentials:
+        if get_user_credentials():
             if st.button("📝 Export to Google Forms", key="export_forms_btn", type="primary", use_container_width=True):
                 with st.spinner("Creating Google Form in your Drive..."):
                     try:
                         form_url = create_google_form(
-                            st.session_state.credentials,
                             st.session_state.get("last_topic", "Retrieval Practice"),
                             st.session_state.quiz_data
                         )
@@ -221,7 +253,7 @@ if st.session_state.quiz_data:
                     except Exception as e:
                         st.error(f"Failed to create Google Form: {e}")
         else:
-            st.warning("Connect Google Drive in Sidebar first")
+            st.info("💡 Connect Google Account in sidebar to enable Forms Export.")
 
     st.divider()
 
