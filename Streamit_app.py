@@ -98,14 +98,14 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# Handle OAuth redirect token exchange
-if "code" in st.query_params:
+# Handle incoming OAuth callback code
+if "code" in st.query_params and "credentials" not in st.session_state:
     try:
         flow = get_oauth_flow()
         flow.fetch_token(code=st.query_params["code"])
         st.session_state["credentials"] = flow.credentials
         st.query_params.clear()
-        st.success("Successfully authenticated with Google!")
+        st.toast("✅ Connected to Google Drive!", icon="🎉")
     except Exception as e:
         st.error(f"Authentication failed: {e}")
 
@@ -113,12 +113,10 @@ def create_google_form(credentials, topic, questions):
     """Creates a Google Form directly in the user's Drive."""
     forms_service = build('forms', 'v1', credentials=credentials)
     
-    # 1. Create a blank form
     form_title = f"{topic} - Retrieval Practice"
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Add questions and mark scheme as descriptions
     requests = []
     for i, q in enumerate(questions):
         requests.append({
@@ -229,9 +227,8 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
 
     with col4:
-        # GOOGLE FORMS EXPORT LOGIC
         if "credentials" in st.session_state:
-            if st.button("📝 Export to Google Forms", key="export_forms_btn", use_container_width=True):
+            if st.button("📝 Export to Google Forms", key="export_forms_btn", type="primary", use_container_width=True):
                 with st.spinner("Creating Google Form in your Drive..."):
                     try:
                         form_url = create_google_form(
