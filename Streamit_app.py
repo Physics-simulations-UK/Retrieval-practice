@@ -36,20 +36,71 @@ def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
 def clean_latex_for_forms(text):
-    """Strips LaTeX dollar signs and converts common LaTeX formatting for Google Forms."""
+    """
+    Converts LaTeX math commands, fractions, and symbols into clean native 
+    Unicode characters suitable for Google Forms text fields.
+    """
     if not text:
         return text
-    cleaned = re.sub(r'\$+(.*?)\$+', r'\1', text)
-    replacements = {
+    
+    cleaned = text
+
+    # Convert basic LaTeX fractions like \frac{a}{b} -> (a/b)
+    cleaned = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1/\2)', cleaned)
+    
+    # Superscripts & Subscripts mapping
+    sub_map = str.maketrans("0123456789+-=()abcdefghijklmnopqrstuvwxyz", 
+                            "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐᵦcdₑfgₕᵢⱼₖₗₘₙₒₚqᵣₛₜᵤᵥwₓy₂")
+    sup_map = str.maketrans("0123456789+-=()abcdefghijklmnopqrstuvwxyz", 
+                            "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ")
+
+    # Handle _{subscript} or _x
+    cleaned = re.sub(r'_\{([^}]+)\}', lambda m: m.group(1).translate(sub_map), cleaned)
+    cleaned = re.sub(r'_([0-9a-z])', lambda m: m.group(1).translate(sub_map), cleaned)
+
+    # Handle ^{superscript} or ^x
+    cleaned = re.sub(r'\^\{([^}]+)\}', lambda m: m.group(1).translate(sup_map), cleaned)
+    cleaned = re.sub(r'\^([0-9a-z])', lambda m: m.group(1).translate(sup_map), cleaned)
+
+    # Comprehensive LaTeX Symbol Replacements
+    latex_replacements = {
         r'\times': '×',
         r'\div': '÷',
         r'\pm': '±',
+        r'\mp': '∓',
         r'\degree': '°',
+        r'\circ': '°',
         r'\rightarrow': '→',
+        r'\leftarrow': '←',
+        r'\Rightarrow': '⇒',
+        r'\Leftarrow': '⇐',
+        r'\Delta': 'Δ',
+        r'\delta': 'δ',
+        r'\theta': 'θ',
+        r'\pi': 'π',
+        r'\alpha': 'α',
+        r'\beta': 'β',
+        r'\gamma': 'γ',
+        r'\lambda': 'λ',
+        r'\mu': 'μ',
+        r'\omega': 'ω',
+        r'\Omega': 'Ω',
+        r'\infty': '∞',
+        r'\approx': '≈',
+        r'\neq': '≠',
+        r'\leq': '≤',
+        r'\geq': '≥',
+        r'\sqrt': '√',
+        r'\cdot': '·'
     }
-    for latex, unicode_char in replacements.items():
-        cleaned = cleaned.replace(latex, unicode_char)
-    return cleaned
+
+    for latex_cmd, unicode_char in latex_replacements.items():
+        cleaned = cleaned.replace(latex_cmd, unicode_char)
+
+    # Remove remaining LaTeX dollar delimiters ($E=mc^2$ -> E=mc²)
+    cleaned = re.sub(r'\$+(.*?)\$+', r'\1', cleaned)
+
+    return cleaned.strip()
 
 # --- 3. DIRECT GOOGLE OAUTH HANDLER ---
 SCOPES = [
