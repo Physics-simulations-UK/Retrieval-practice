@@ -1,4 +1,5 @@
 streamlit
 google-generativeai
+extra-streamlit-components
 google-api-python-client
 google-auth-oauthlib
