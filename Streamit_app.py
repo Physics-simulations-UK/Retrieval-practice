@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import re
 import requests
+import json
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -36,7 +37,7 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-# --- 3. DIRECT GOOGLE OAUTH HANDLER (NO PKCE RESET ERRORS) ---
+# --- 3. DIRECT GOOGLE OAUTH HANDLER ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
@@ -47,7 +48,6 @@ CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
 REDIRECT_URI = st.secrets["google_oauth"]["redirect_uri"]
 
 def get_auth_url():
-    """Generates pure OAuth URL without PKCE dependency."""
     scope_str = "%20".join(SCOPES)
     return (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
@@ -60,7 +60,6 @@ def get_auth_url():
     )
 
 def exchange_code_for_tokens(auth_code):
-    """Exchanges return code directly via HTTP POST to avoid missing code verifier errors."""
     token_url = "https://oauth2.googleapis.com/token"
     payload = {
         "code": auth_code,
@@ -79,7 +78,6 @@ def exchange_code_for_tokens(auth_code):
 if "google_creds" not in st.session_state:
     st.session_state.google_creds = None
 
-# Catch ?code= from Google redirect
 if not st.session_state.google_creds and "code" in st.query_params:
     try:
         auth_code = st.query_params["code"]
@@ -103,19 +101,20 @@ def get_valid_credentials():
         return Credentials(**st.session_state.google_creds)
     return None
 
+# --- 4. GOOGLE FORM QUIZ CREATOR WITH AUTOMATIC GRADING ---
 def create_google_form(topic, questions):
     creds = get_valid_credentials()
     if not creds:
         raise Exception("Not connected to Google Account.")
 
     forms_service = build('forms', 'v1', credentials=creds)
-    form_title = f"{topic} - Retrieval Practice"
+    form_title = f"{topic} - Multiple Choice Quiz"
     
     # Create base form
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # Make Quiz and add Questions
+    # 1. Turn on Quiz Mode
     batch_requests = [
         {
             "updateSettings": {
@@ -125,22 +124,44 @@ def create_google_form(topic, questions):
         }
     ]
     
+    # 2. Add Multiple Choice items with Answer Keys
     for i, q in enumerate(questions):
-        batch_requests.append({
+        # Format options structure
+        option_objs = [{"value": opt} for opt in q["options"]]
+        
+        item_request = {
             "createItem": {
                 "item": {
                     "title": q["q"],
-                    "description": f"Mark Scheme Guidance:\n{q['a']}",
-                    "textItem": {}
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "grading": {
+                                "pointValue": 1,
+                                "correctAnswers": {
+                                    "answers": [{"value": q["correct_option"]}]
+                                },
+                                "generalFeedback": {
+                                    "text": f"Mark Scheme Guidance: {q['explanation']}"
+                                }
+                            },
+                            "choiceQuestion": {
+                                "type": "RADIO",
+                                "options": option_objs,
+                                "shuffle": True
+                            }
+                        }
+                    }
                 },
                 "location": {"index": i}
             }
-        })
+        }
+        batch_requests.append(item_request)
     
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
     return f"https://docs.google.com/forms/d/{form_id}/edit"
 
-# --- 4. SIDEBAR ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
     try:
         st.image("IMG_0202.png", use_container_width=True)
@@ -165,13 +186,13 @@ with st.sidebar:
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 5. MAIN PAGE & ACTIONS ---
-st.title("👨🏻‍🏫 Retrieval Practice")
+# --- 6. MAIN PAGE & ACTIONS ---
+st.title("👨🏻‍🏫 Self-Marking Quiz Generator")
 
 col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
 
 with col1:
-    generate_clicked = st.button("🚀 Generate Questions", key="main_gen", type="primary", use_container_width=True)
+    generate_clicked = st.button("🚀 Generate Quiz", key="main_gen", type="primary", use_container_width=True)
 
 if generate_clicked:
     if not api_key:
@@ -184,29 +205,42 @@ if generate_clicked:
             model = genai.GenerativeModel('gemini-3.1-flash-lite')
            
             prompt = (
-                f"Act as an expert {level} Edexcel examiner. " 
-                f"Create {num_q} retrieval questions for the {level} {topic} topic, "
-                f"strictly following the current Edexcel Specification. "
-                f"The 'Answer' side must include specific Edexcel marking key words as found in official mark schemes. "
-                f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
-                f"In the Answer section, include a brief 'Common Misconception' tip in brackets if applicable. "
-                f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
-                f"No bolding, no numbers, no intro text. Just the lines with |."
+                f"Act as an expert {level} Edexcel examiner. "
+                f"Create {num_q} multiple choice retrieval questions for the {level} {topic} topic, "
+                f"strictly following the Edexcel specification.\n\n"
+                f"Return ONLY a raw JSON array containing objects with the following schema, with no markdown formatting or backticks:\n"
+                f"[\n"
+                f"  {{\n"
+                f'    "question": "Question text",\n'
+                f'    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],\n'
+                f'    "correct_option": "Exact matching string from options array",\n'
+                f'    "explanation": "Brief Edexcel mark scheme explanation"\n'
+                f"  }}\n"
+                f"]"
             )
            
-            with st.spinner("Generating exam-style questions..."):
+            with st.spinner("Generating self-marking questions..."):
                 response = model.generate_content(prompt)
-                raw_text = response.text
-               
+                raw_text = response.text.strip()
+                
+                # Clean markdown wrapper if present
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.startswith("```"):
+                    raw_text = raw_text[3:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                
+                quiz_json = json.loads(raw_text.strip())
+                
                 new_quiz = []
-                for line in raw_text.split('\n'):
-                    if "|" in line:
-                        parts = line.split("|", 1)
-                        if len(parts) == 2:
-                            q_clean = parts[0].replace("*", "").strip()
-                            a_clean = parts[1].replace("*", "").strip()
-                            if len(q_clean) > 3:
-                                new_quiz.append({"q": q_clean, "a": a_clean})
+                for q in quiz_json:
+                    new_quiz.append({
+                        "q": q["question"],
+                        "options": q["options"],
+                        "correct_option": q["correct_option"],
+                        "explanation": q["explanation"]
+                    })
                
                 if new_quiz:
                     st.session_state.quiz_data = new_quiz
@@ -215,7 +249,7 @@ if generate_clicked:
                     st.session_state.revealed_answers = [False] * len(new_quiz)
                     st.rerun()
                 else:
-                    st.error("The AI response was formatted incorrectly. Please try again.")
+                    st.error("The AI response was empty. Please try again.")
         except Exception as e:
             st.error(f"An error occurred: {e}")
 
@@ -241,13 +275,13 @@ if st.session_state.quiz_data:
     with col4:
         if get_valid_credentials():
             if st.button("📝 Export to Google Forms", key="export_forms_btn", type="primary", use_container_width=True):
-                with st.spinner("Creating Google Form in your Drive..."):
+                with st.spinner("Creating Self-Marking Google Quiz..."):
                     try:
                         form_url = create_google_form(
                             st.session_state.get("last_topic", "Retrieval Practice"),
                             st.session_state.quiz_data
                         )
-                        st.success(f"Form Created! [Click here to open Form]({form_url})")
+                        st.success(f"Self-Marking Quiz Created! [Click here to open Form]({form_url})")
                     except Exception as e:
                         st.error(f"Failed to create Google Form: {e}")
         else:
@@ -255,7 +289,7 @@ if st.session_state.quiz_data:
 
     st.divider()
 
-    # --- 6. QUESTIONS DISPLAY LOOP ---
+    # --- 7. QUESTIONS DISPLAY LOOP ---
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
 
     for i, item in enumerate(st.session_state.quiz_data):
@@ -267,24 +301,28 @@ if st.session_state.quiz_data:
         else:
             st.markdown(f"### Q{i+1}: {q_text}")
 
+        # Render options list
+        for opt in item['options']:
+            if opt == item['correct_option']:
+                st.markdown(f"- **{opt}** *(Correct Answer)*")
+            else:
+                st.markdown(f"- {opt}")
+
+        st.markdown("<br>", unsafe_allow_html=True)
         is_revealed = st.session_state.revealed_answers[i]
-        btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
+        btn_label = "🙈 Hide Guidance" if is_revealed else "👁️ Reveal Guidance"
         
         if st.button(f"{btn_label} Q{i+1}", key=f"individual_btn_{i}"):
             st.session_state.revealed_answers[i] = not is_revealed
             st.rerun()
 
         if st.session_state.revealed_answers[i]:
-            st.write("**Mark Scheme / Guidance:**")
-            a_text = item['a']
-            if is_arabic(a_text):
-                st.markdown(f'<div dir="rtl" style="text-align: right; background-color: #eff6ff; padding: 12px; border-radius: 6px; border-right: 4px solid #004b95;">{a_text}</div>', unsafe_allow_html=True)
-            else:
-                st.info(a_text)
+            st.write("**Mark Scheme / Feedback:**")
+            st.info(item['explanation'])
                 
         st.markdown('</div>', unsafe_allow_html=True)
         st.divider()
 
 else:
     st.divider()
-    st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
+    st.info("👈 Enter a topic in the sidebar and click 'Generate Quiz' to start.")
