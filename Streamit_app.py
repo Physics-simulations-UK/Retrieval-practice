@@ -150,16 +150,17 @@ def create_google_form(topic, questions):
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Configure form as Quiz
+    # 2. Configure form as Quiz AND allow response edits (for post-review self-marking)
     batch_requests = [
         {
             "updateSettings": {
                 "settings": {
                     "quizSettings": {
                         "isQuiz": True
-                    }
+                    },
+                    "allowResponseEdits": True
                 },
-                "updateMask": "quizSettings.isQuiz"
+                "updateMask": "quizSettings.isQuiz,allowResponseEdits"
             }
         }
     ]
@@ -190,10 +191,41 @@ def create_google_form(topic, questions):
                 "location": {"index": i}
             }
         })
+
+    # 4. Add final Self-Assessment score selector for Google Classroom Grade Import
+    total_q_count = len(questions)
+    batch_requests.append({
+        "createItem": {
+            "item": {
+                "title": (
+                    f"FINAL STEP — Self-Assessed Score (out of {total_q_count}):\n\n"
+                    "1. On FIRST submission, leave this question blank.\n"
+                    "2. Click 'Submit', then click 'View Accuracy' to read the Mark Scheme.\n"
+                    "3. Click 'Edit your response' at the top of the page to return here.\n"
+                    "4. Select your self-assessed mark based on the Mark Scheme guidance and Submit again."
+                ),
+                "questionItem": {
+                    "question": {
+                        "required": False,  # Optional on first submission
+                        "grading": {
+                            "pointValue": total_q_count  # Assigns points for Classroom sync
+                        },
+                        "choiceQuestion": {
+                            "type": "RADIO",
+                            "options": [
+                                {"value": f"{score} / {total_q_count}"} for score in range(total_q_count + 1)
+                            ]
+                        }
+                    }
+                }
+            },
+            "location": {"index": total_q_count}
+        }
+    })
     
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
 
-    # 4. Move the created form into the target Drive folder
+    # 5. Move the created form into the target Drive folder
     try:
         folder_id = get_or_create_folder(drive_service, folder_name="Retrieval Practice Quizzes")
         
