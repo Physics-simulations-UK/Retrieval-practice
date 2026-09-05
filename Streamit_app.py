@@ -16,65 +16,29 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
-    .explanation-box {
-        background-color: #f0f7ff;
-        padding: 18px;
-        border-radius: 8px;
-        border-left: 5px solid #004b95;
-        color: #1e1e1e;
-        margin-top: 10px;
-    }
-
-    @media print {
-        section[data-testid="stSidebar"],
-        button,
-        header,
-        footer,
-        .stButton,
-        [data-testid="stHeader"] {
-            display: none !important;
-        }
-        
-        body, .main {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-        }
-
-        h1, h2, h3, h4, p, span, div, strong, em {
-            color: #000000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        [data-testid="stAlert"] {
-            background-color: #f8fafc !important;
-            color: #000000 !important;
-            border: 1px solid #004b95 !important;
-            opacity: 1 !important;
-        }
-        
-        [data-testid="stAlert"] * {
-            color: #000000 !important;
-        }
-        
-        .pdf-card {
-            border: 1px solid #cbd5e1 !important;
-            background-color: #ffffff !important;
-            padding: 12px 16px !important;
-            margin-bottom: 14px !important;
-            border-radius: 6px !important;
-            page-break-inside: avoid !important;
-        }
+    .pdf-card {
+        border: 1px solid #cbd5e1 !important;
+        background-color: #ffffff !important;
+        padding: 12px 16px !important;
+        margin-bottom: 14px !important;
+        border-radius: 6px !important;
+        page-break-inside: avoid !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SECRETS, HELPER FUNCTIONS & EARLY OAUTH CATCH ---
+# --- 2. INITIALIZE SESSION STATE ---
+if "quiz_data" not in st.session_state:
+    st.session_state.quiz_data = []
+if "credentials" not in st.session_state:
+    st.session_state.credentials = None
+
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
+# --- 3. OAUTH SETUP & INITIAL AUTHORIZATION CHECK ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
@@ -97,12 +61,13 @@ def get_oauth_flow():
         redirect_uri=st.secrets["google_oauth"]["redirect_uri"]
     )
 
-# CRITICAL: Catch Google's return 'code' before anything else renders or triggers a rerun
-if "code" in st.query_params and "credentials" not in st.session_state:
+# Process OAuth response parameter if redirected back from Google
+if "code" in st.query_params and not st.session_state.credentials:
     try:
         flow = get_oauth_flow()
         flow.fetch_token(code=st.query_params["code"])
-        st.session_state["credentials"] = flow.credentials
+        st.session_state.credentials = flow.credentials
+        # Clear url query params so code isn't re-used on refresh
         st.query_params.clear()
         st.toast("✅ Google Account Connected!", icon="🎉")
     except Exception as e:
@@ -111,14 +76,24 @@ if "code" in st.query_params and "credentials" not in st.session_state:
 def create_google_form(credentials, topic, questions):
     """Creates a Google Form directly in the user's Drive."""
     forms_service = build('forms', 'v1', credentials=credentials)
-    
     form_title = f"{topic} - Retrieval Practice"
+    
+    # Create base form
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    requests = []
+    # Configure Quiz mode and add questions
+    batch_requests = [
+        {
+            "updateSettings": {
+                "settings": {"quizSettings": {"isQuiz": True}},
+                "updateMask": "quizSettings.isQuiz"
+            }
+        }
+    ]
+    
     for i, q in enumerate(questions):
-        requests.append({
+        batch_requests.append({
             "createItem": {
                 "item": {
                     "title": q["q"],
@@ -129,10 +104,10 @@ def create_google_form(credentials, topic, questions):
             }
         })
     
-    forms_service.forms().batchUpdate(formId=form_id, body={"requests": requests}).execute()
+    forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
     return f"https://docs.google.com/forms/d/{form_id}/edit"
 
-# --- 3. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     try:
         st.image("IMG_0202.png", use_container_width=True)
@@ -141,12 +116,11 @@ with st.sidebar:
     
     st.divider()
     st.title("🎯 Topic Selector")
-   
     level = st.selectbox("Exam Level:", ["GCSE", "A Level"])
     topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
     num_q = st.slider("Questions:", 1, 10, 5)
 
-# --- 4. MAIN PAGE & ACTION BAR ---
+# --- 5. MAIN PAGE & ACTIONS ---
 st.title("👨🏻‍🏫 Retrieval Practice")
 
 col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
@@ -186,7 +160,6 @@ if generate_clicked:
                         if len(parts) == 2:
                             q_clean = parts[0].replace("*", "").strip()
                             a_clean = parts[1].replace("*", "").strip()
-                           
                             if len(q_clean) > 3:
                                 new_quiz.append({"q": q_clean, "a": a_clean})
                
@@ -198,15 +171,11 @@ if generate_clicked:
                     st.rerun()
                 else:
                     st.error("The AI response was formatted incorrectly. Please try again.")
-        
         except Exception as e:
-            if "429" in str(e):
-                st.error("Quota exceeded! Please wait a minute or check your daily limit.")
-            else:
-                st.error(f"An error occurred: {e}")
+            st.error(f"An error occurred: {e}")
 
-# Action Buttons Bar when Quiz Data Exists
-if 'quiz_data' in st.session_state and st.session_state.quiz_data:
+# Render options bar & question list if quiz data is present
+if st.session_state.quiz_data:
     quiz_len = len(st.session_state.quiz_data)
 
     if 'revealed_answers' not in st.session_state or len(st.session_state.revealed_answers) != quiz_len:
@@ -221,21 +190,20 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
             st.rerun()
 
     with col3:
-        print_clicked = st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True)
-        if print_clicked:
+        if st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True):
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
 
     with col4:
-        if "credentials" in st.session_state:
+        if st.session_state.credentials:
             if st.button("📝 Export to Google Forms", key="export_forms_btn", type="primary", use_container_width=True):
                 with st.spinner("Creating Google Form in your Drive..."):
                     try:
                         form_url = create_google_form(
-                            st.session_state["credentials"],
+                            st.session_state.credentials,
                             st.session_state.get("last_topic", "Retrieval Practice"),
                             st.session_state.quiz_data
                         )
-                        st.success(f"Form Created! [Click here to open your Form]({form_url})")
+                        st.success(f"Form Created! [Click here to open Form]({form_url})")
                     except Exception as e:
                         st.error(f"Failed to create Google Form: {e}")
         else:
@@ -249,7 +217,7 @@ if 'quiz_data' in st.session_state and st.session_state.quiz_data:
 
     st.divider()
 
-    # --- 5. QUESTIONS DISPLAY LOOP ---
+    # --- 6. QUESTIONS DISPLAY LOOP ---
     st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
 
     for i, item in enumerate(st.session_state.quiz_data):
