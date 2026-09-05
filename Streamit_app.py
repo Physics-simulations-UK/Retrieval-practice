@@ -10,6 +10,7 @@ st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon
 
 st.markdown("""
     <style>
+    /* Standard Screen Styling */
     .stButton > button {
         height: 40px !important;
         font-size: 14px !important;
@@ -22,6 +23,34 @@ st.markdown("""
         padding: 16px 20px !important;
         margin-bottom: 16px !important;
         border-radius: 8px !important;
+    }
+
+    /* --- PRINT STYLING (Applies ONLY when saving to PDF) --- */
+    @media print {
+        /* Hide sidebar, buttons, and Streamlit header chrome */
+        section[data-testid="stSidebar"],
+        header,
+        footer,
+        .stButton,
+        [data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        /* Ensure main page content uses full print width */
+        .main .block-container {
+            max-width: 100% !important;
+            padding: 0 !important;
+        }
+
+        /* Prevent question cards from splitting awkwardly across page breaks */
+        .question-card {
+            page-break-inside: avoid;
+        }
+
+        /* Force ALL answer boxes to render on the printed PDF */
+        .answer-box {
+            display: block !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -255,9 +284,9 @@ def create_google_form(topic, questions):
                     "📋 INSTRUCTION GUIDE FOR STUDENTS:\n\n"
                     "1. On FIRST submission: Complete questions 1 to " + str(total_q_count) + ", leave this section blank, and click SUBMIT.\n"
                     "2. Click 'View score' on the confirmation page to review the Mark Scheme for each question.\n"
-                    "3. Go back to the original form and click Edit your response and use the grid below to give yourself marks for each question:\n"
-                    "   • Select 'Earned Mark' if your answer matched the mark scheme.\n"
-                    "   • Select 'Incorrect / No Mark' if your answer does not match the mark scheme.\n"
+                    "3. Re-open/edit your response and evaluate your work in the grid below:\n"
+                    "   • Select 'Earned Mark' if your answer matched the key scheme points.\n"
+                    "   • Select 'Incorrect / No Mark' if key elements were missing.\n"
                     "4. Submit the form again to send your score to Google Classroom."
                 ),
                 "questionGroupItem": {
@@ -427,6 +456,7 @@ if st.session_state.quiz_data:
 
     for i, item in enumerate(st.session_state.quiz_data):
         q_text = item['q']
+        a_text = item['a']
         is_revealed = st.session_state.revealed_answers[i]
         btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
 
@@ -441,14 +471,23 @@ if st.session_state.quiz_data:
             st.session_state.revealed_answers[i] = not is_revealed
             st.rerun()
 
-        if st.session_state.revealed_answers[i]:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.write("**Mark Scheme / Guidance:**")
-            a_text = item['a']
-            if is_arabic(a_text):
-                st.markdown(f'<div dir="rtl" style="text-align: right; background-color: #eff6ff; padding: 12px; border-radius: 6px; border-right: 4px solid #004b95;">{a_text}</div>', unsafe_allow_html=True)
-            else:
-                st.info(a_text)
+        # Display block toggle on screen, automatically forced to 'block' in PDF export
+        display_style = "block" if is_revealed else "none"
+        
+        if is_arabic(a_text):
+            st.markdown(f'''
+                <div class="answer-box" style="display: {display_style};">
+                    <br><b>Mark Scheme / Guidance:</b>
+                    <div dir="rtl" style="text-align: right; background-color: #eff6ff; padding: 12px; border-radius: 6px; border-right: 4px solid #004b95;">{a_text}</div>
+                </div>
+            ''', unsafe_allow_html=True)
+        else:
+            st.markdown(f'''
+                <div class="answer-box" style="display: {display_style};">
+                    <br><b>Mark Scheme / Guidance:</b>
+                    <div style="background-color: #f0fdf4; padding: 12px; border-radius: 6px; border-left: 4px solid #16a34a; color: #166534;">{a_text}</div>
+                </div>
+            ''', unsafe_allow_html=True)
                 
         st.markdown('</div>', unsafe_allow_html=True)
 
