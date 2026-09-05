@@ -190,41 +190,40 @@ def create_google_form(topic, questions):
             }
         })
 
-    # 4. Add Self-Assessment Question with mapped correctAnswers for Google Classroom Grade Import
+    # 4. Add Individual Weighted Choice Questions (1 Point Per Mark Earned)
+    # This structure gives exact numeric credit for student self-assessments that imports to Google Classroom
     total_q_count = len(questions)
-    batch_requests.append({
-        "createItem": {
-            "item": {
-                "title": f"FINAL STEP — Self-Assessed Score (out of {total_q_count})",
-                "description": (
-                    "STEPS TO COMPLETE YOUR GRADE:\n"
-                    "1. On FIRST submission, leave this blank and click Submit.\n"
-                    "2. Click 'View score' on the screen to review the Mark Scheme.\n"
-                    "3. Open the Form link again or click 'Edit your response' to select your mark.\n"
-                    "4. Select your score and submit again so your grade registers in Classroom."
-                ),
-                "questionItem": {
-                    "question": {
-                        "required": False,
-                        "grading": {
-                            "pointValue": total_q_count,
-                            "correctAnswers": {
-                                "answers": [{"value": f"{score} / {total_q_count}"} for score in range(total_q_count + 1)]
+    
+    for score in range(1, total_q_count + 1):
+        batch_requests.append({
+            "createItem": {
+                "item": {
+                    "title": f"Self-Assessment Point #{score}",
+                    "description": f"Did you earn Mark #{score} based on the Mark Scheme?",
+                    "questionItem": {
+                        "question": {
+                            "required": False,
+                            "grading": {
+                                "pointValue": 1,
+                                "correctAnswers": {
+                                    "answers": [{"value": "Yes"}]
+                                }
+                            },
+                            "choiceQuestion": {
+                                "type": "RADIO",
+                                "options": [
+                                    {"value": "Yes"},
+                                    {"value": "No"}
+                                ]
                             }
-                        },
-                        "choiceQuestion": {
-                            "type": "RADIO",
-                            "options": [
-                                {"value": f"{score} / {total_q_count}"} for score in range(total_q_count + 1)
-                            ]
                         }
                     }
-                }
-            },
-            "location": {"index": total_q_count}
-        }
-    })
-    
+                },
+                "location": {"index": total_q_count + (score - 1)}
+            }
+        })
+
+    # Execute Batch Request
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
 
     # 5. Move the created form into the target Drive folder
