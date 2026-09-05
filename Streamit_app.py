@@ -64,10 +64,10 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 def is_arabic(text):
     return bool(re.search(r'[\u0600-\u06FF]', text))
 
-def clean_latex_for_forms(text):
+def clean_latex(text):
     """
     Converts LaTeX math commands, fractions, and symbols into clean native 
-    Unicode characters suitable for Google Forms text fields.
+    Unicode characters suitable for display and strips all $ signs.
     """
     if not text:
         return text
@@ -126,8 +126,8 @@ def clean_latex_for_forms(text):
     for latex_cmd, unicode_char in latex_replacements.items():
         cleaned = cleaned.replace(latex_cmd, unicode_char)
 
-    # Remove remaining LaTeX dollar delimiters ($E=mc^2$ -> E=mc²)
-    cleaned = re.sub(r'\$+(.*?)\$+', r'\1', cleaned)
+    # Strip out all remaining $ signs completely
+    cleaned = cleaned.replace('$', '')
 
     return cleaned.strip()
 
@@ -245,19 +245,16 @@ def create_google_form(topic, questions):
     
     # 3. Add open-ended practice questions
     for i, q in enumerate(questions):
-        clean_q = clean_latex_for_forms(q["q"])
-        clean_a = clean_latex_for_forms(q["a"])
-
         batch_requests.append({
             "createItem": {
                 "item": {
-                    "title": f"Q{i+1}: {clean_q}",
+                    "title": f"Q{i+1}: {q['q']}",
                     "questionItem": {
                         "question": {
                             "required": True,
                             "grading": {
                                 "generalFeedback": {
-                                    "text": f"OFFICIAL MARK SCHEME:\n{clean_a}"
+                                    "text": f"OFFICIAL MARK SCHEME:\n{q['a']}"
                                 }
                             },
                             "textQuestion": {
@@ -386,7 +383,7 @@ if generate_clicked:
                 f"The 'Answer' side must include specific Edexcel marking key words as found in official mark schemes. "
                 f"Format every line exactly as: Question Text | Answer and Mark Scheme. "
                 f"In the Answer section, include a brief 'Common Misconception' tip in brackets if applicable. "
-                f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
+                f"Do NOT use dollar signs ($) or LaTeX math delimiters around text or numbers. Use standard plain text or standard symbols only. "
                 f"No bolding, no numbers, no intro text. Just the lines with |."
             )
            
@@ -401,6 +398,11 @@ if generate_clicked:
                         if len(parts) == 2:
                             q_clean = parts[0].replace("*", "").strip()
                             a_clean = parts[1].replace("*", "").strip()
+                            
+                            # Clean LaTeX and remove dollar signs on generation
+                            q_clean = clean_latex(q_clean)
+                            a_clean = clean_latex(a_clean)
+                            
                             if len(q_clean) > 3:
                                 new_quiz.append({"q": q_clean, "a": a_clean})
                
