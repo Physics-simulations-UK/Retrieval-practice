@@ -150,17 +150,16 @@ def create_google_form(topic, questions):
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Configure form as Quiz AND allow response edits (for post-review self-marking)
+    # 2. Configure form as Quiz
     batch_requests = [
         {
             "updateSettings": {
                 "settings": {
                     "quizSettings": {
                         "isQuiz": True
-                    },
-                    "allowResponseEdits": True
+                    }
                 },
-                "updateMask": "quizSettings.isQuiz,allowResponseEdits"
+                "updateMask": "quizSettings.isQuiz"
             }
         }
     ]
