@@ -39,7 +39,6 @@ def clean_latex_for_forms(text):
     """Strips LaTeX dollar signs and converts common LaTeX formatting for Google Forms."""
     if not text:
         return text
-    # Remove single and double dollar signs ($E=mc^2$ -> E=mc^2)
     cleaned = re.sub(r'\$+(.*?)\$+', r'\1', text)
     replacements = {
         r'\times': '×',
@@ -146,11 +145,11 @@ def create_google_form(topic, questions):
 
     form_title = f"{topic} - Retrieval Practice"
     
-    # 1. Create the base Google Form
+    # 1. Create base Google Form
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Configure form as Quiz
+    # 2. Configure Form Settings: Enable Quiz + Confirmation Guidance
     batch_requests = [
         {
             "updateSettings": {
@@ -164,7 +163,7 @@ def create_google_form(topic, questions):
         }
     ]
     
-    # 3. Add questions with cleaned text and post-submission feedback
+    # 3. Add questions with mark scheme feedback
     for i, q in enumerate(questions):
         clean_q = clean_latex_for_forms(q["q"])
         clean_a = clean_latex_for_forms(q["a"])
@@ -191,23 +190,24 @@ def create_google_form(topic, questions):
             }
         })
 
-    # 4. Add final Self-Assessment score selector with multiline text moved to description
+    # 4. Add Self-Assessment Question (Carries total points for Classroom import)
     total_q_count = len(questions)
     batch_requests.append({
         "createItem": {
             "item": {
                 "title": f"FINAL STEP — Self-Assessed Score (out of {total_q_count})",
                 "description": (
-                    "1. On FIRST submission, leave this question blank.\n"
-                    "2. Click 'Submit', then click 'View Accuracy' to read the Mark Scheme.\n"
-                    "3. Click 'Edit your response' at the top of the page to return here.\n"
-                    "4. Select your self-assessed mark based on the Mark Scheme guidance and Submit again."
+                    "STEPS TO COMPLETE YOUR GRADE:\n"
+                    "1. Leave this blank now and click Submit.\n"
+                    "2. Click 'View score' on the screen to review the Mark Scheme.\n"
+                    "3. Open the Form link again or click 'Edit your response' to select your mark.\n"
+                    "4. Submit the form again so your grade registers in Classroom."
                 ),
                 "questionItem": {
                     "question": {
-                        "required": False,  # Optional on first submission
+                        "required": False,
                         "grading": {
-                            "pointValue": total_q_count  # Assigns points for Classroom sync
+                            "pointValue": total_q_count
                         },
                         "choiceQuestion": {
                             "type": "RADIO",
