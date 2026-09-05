@@ -1,106 +1,155 @@
-import os
-import re
 import streamlit as st
 import google.generativeai as genai
+import re
+import requests
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
-# ------------------------------------------------------------------------------
-# CONFIGURATION & CONSTANTS
-# ------------------------------------------------------------------------------
+# --- 1. PAGE CONFIG & STYLING ---
+st.set_page_config(page_title="Retrieval Practice Pro", layout="wide", page_icon="✅")
+
+st.markdown("""
+    <style>
+    .stButton > button {
+        height: 40px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        border-radius: 8px !important;
+    }
+    .question-card {
+        border: 1px solid #cbd5e1 !important;
+        background-color: #ffffff !important;
+        padding: 16px 20px !important;
+        margin-bottom: 16px !important;
+        border-radius: 8px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. INITIALIZE SESSION STATE ---
+if "quiz_data" not in st.session_state:
+    st.session_state.quiz_data = []
+
+api_key = st.secrets.get("GEMINI_API_KEY", "")
+
+def is_arabic(text):
+    return bool(re.search(r'[\u0600-\u06FF]', text))
+
+def clean_latex_for_forms(text):
+    """Strips LaTeX dollar signs and converts common LaTeX formatting for Google Forms."""
+    if not text:
+        return text
+    cleaned = re.sub(r'\$+(.*?)\$+', r'\1', text)
+    replacements = {
+        r'\times': '×',
+        r'\div': '÷',
+        r'\pm': '±',
+        r'\degree': '°',
+        r'\rightarrow': '→',
+    }
+    for latex, unicode_char in replacements.items():
+        cleaned = cleaned.replace(latex, unicode_char)
+    return cleaned
+
+# --- 3. DIRECT GOOGLE OAUTH HANDLER ---
 SCOPES = [
     'https://www.googleapis.com/auth/forms.body',
     'https://www.googleapis.com/auth/drive.file'
 ]
 
-st.set_page_config(
-    page_title="Edexcel Retrieval Practice Generator",
-    page_icon="📝",
-    layout="wide"
-)
+CLIENT_ID = st.secrets["google_oauth"]["client_id"]
+CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
+REDIRECT_URI = st.secrets["google_oauth"]["redirect_uri"]
 
-# Initialize Session States
-if "quiz_data" not in st.session_state:
-    st.session_state.quiz_data = []
-if "revealed_answers" not in st.session_state:
-    st.session_state.revealed_answers = []
-if "last_level" not in st.session_state:
-    st.session_state.last_level = ""
-if "last_topic" not in st.session_state:
-    st.session_state.last_topic = ""
+def get_auth_url():
+    """Generates pure OAuth URL without PKCE dependency."""
+    scope_str = "%20".join(SCOPES)
+    return (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={CLIENT_ID}&"
+        f"redirect_uri={REDIRECT_URI}&"
+        f"response_type=code&"
+        f"scope={scope_str}&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
 
-# ------------------------------------------------------------------------------
-# HELPER FUNCTIONS
-# ------------------------------------------------------------------------------
-def clean_latex_for_forms(text: str) -> str:
-    """Converts LaTeX math notation ($...$) into readable plain text for Google Forms."""
-    if not text:
-        return ""
-    # Strip basic inline LaTeX delimiters
-    cleaned = re.sub(r'\$(.*?)\$', r'\1', text)
-    cleaned = cleaned.replace('\\times', '×').replace('\\div', '÷').replace('\\pm', '±')
-    return cleaned.strip()
+def exchange_code_for_tokens(auth_code):
+    """Exchanges return code directly via HTTP POST."""
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "code": auth_code,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+    res = requests.post(token_url, data=payload)
+    if res.status_code == 200:
+        return res.json()
+    else:
+        raise Exception(f"Token exchange failed: {res.text}")
+
+# PERSISTENT CREDENTIAL RECOVERY
+if "google_creds" not in st.session_state:
+    st.session_state.google_creds = None
+
+# Catch ?code= from Google redirect
+if not st.session_state.google_creds and "code" in st.query_params:
+    try:
+        auth_code = st.query_params["code"]
+        tokens = exchange_code_for_tokens(auth_code)
+        
+        st.session_state.google_creds = {
+            'token': tokens.get('access_token'),
+            'refresh_token': tokens.get('refresh_token'),
+            'token_uri': "https://oauth2.googleapis.com/token",
+            'client_id': CLIENT_ID,
+            'client_secret': CLIENT_SECRET,
+            'scopes': SCOPES
+        }
+        st.query_params.clear()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Authentication Error: {e}")
 
 def get_valid_credentials():
-    """Handles OAuth2 Desktop client flow for Google Forms/Drive API."""
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists('credentials.json'):
-                st.error("Missing `credentials.json` for Google OAuth API authentication.")
-                return None
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-            
-    return creds
+    if st.session_state.google_creds and st.session_state.google_creds.get('token'):
+        return Credentials(**st.session_state.google_creds)
+    return None
 
+# --- 4. GOOGLE DRIVE & FORMS FUNCTIONS ---
 def get_or_create_folder(drive_service, folder_name="Retrieval Practice Quizzes"):
-    """Finds or creates a Google Drive folder to store generated Forms."""
-    query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
-    items = results.get('files', [])
-    
-    if items:
-        return items[0]['id']
+    """Finds an existing folder by name or creates a new one in Google Drive."""
+    query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    response = drive_service.files().list(q=query, fields="files(id, name)").execute()
+    folders = response.get('files', [])
+
+    if folders:
+        return folders[0]['id']
     else:
-        file_metadata = {
+        folder_metadata = {
             'name': folder_name,
             'mimeType': 'application/vnd.google-apps.folder'
         }
-        folder = drive_service.files().create(body=file_metadata, fields='id').execute()
-        return folder.get('id')
+        folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
+        return folder['id']
 
-def create_google_form(topic: str, questions: list) -> str:
-    """
-    Creates a Google Form Quiz with:
-    1. Paragraph text fields for student practice.
-    2. Mark Scheme guidance embedded in question feedback.
-    3. Weighted Answer Key on the final self-assessment question for Grade Import.
-    """
+def create_google_form(topic, questions):
     creds = get_valid_credentials()
     if not creds:
-        raise Exception("Failed to authenticate with Google Account.")
+        raise Exception("Not connected to Google Account.")
 
     forms_service = build('forms', 'v1', credentials=creds)
     drive_service = build('drive', 'v3', credentials=creds)
 
     form_title = f"{topic} - Retrieval Practice"
     
-    # 1. Create Base Form
+    # 1. Create base Google Form
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Enable Quiz Settings
+    # 2. Configure Form Settings: Enable Quiz
     batch_requests = [
         {
             "updateSettings": {
@@ -114,7 +163,7 @@ def create_google_form(topic: str, questions: list) -> str:
         }
     ]
     
-    # 3. Append Open-Ended Practice Questions
+    # 3. Add open-ended practice questions
     for i, q in enumerate(questions):
         clean_q = clean_latex_for_forms(q["q"])
         clean_a = clean_latex_for_forms(q["a"])
@@ -122,13 +171,13 @@ def create_google_form(topic: str, questions: list) -> str:
         batch_requests.append({
             "createItem": {
                 "item": {
-                    "title": f"Q{i+1}. {clean_q}",
+                    "title": clean_q,
                     "questionItem": {
                         "question": {
                             "required": True,
                             "grading": {
                                 "generalFeedback": {
-                                    "text": f"OFFICIAL MARK SCHEME:\n{clean_a}"
+                                    "text": f"Mark Scheme Guidance:\n{clean_a}"
                                 }
                             },
                             "textQuestion": {
@@ -141,20 +190,18 @@ def create_google_form(topic: str, questions: list) -> str:
             }
         })
 
-    # 4. Append Self-Assessment Question with Answer Keys mapped to point values
+    # 4. Add Self-Assessment Question with mapped correctAnswers for Google Classroom Grade Import
     total_q_count = len(questions)
-    score_options = [{"value": f"{score} / {total_q_count}"} for score in range(total_q_count + 1)]
-
     batch_requests.append({
         "createItem": {
             "item": {
                 "title": f"FINAL STEP — Self-Assessed Score (out of {total_q_count})",
                 "description": (
-                    "INSTRUCTIONS FOR GRADE REGISTRATION:\n"
-                    "1. On FIRST submission, leave this question blank and click Submit.\n"
-                    "2. Click 'View score' on your screen to review your answers against the Mark Scheme.\n"
-                    "3. Click 'Edit your response' (or re-open the Form link) to return to this question.\n"
-                    "4. Select the total score you earned and submit again to register your score in Google Classroom."
+                    "STEPS TO COMPLETE YOUR GRADE:\n"
+                    "1. On FIRST submission, leave this blank and click Submit.\n"
+                    "2. Click 'View score' on the screen to review the Mark Scheme.\n"
+                    "3. Open the Form link again or click 'Edit your response' to select your mark.\n"
+                    "4. Select your score and submit again so your grade registers in Classroom."
                 ),
                 "questionItem": {
                     "question": {
@@ -167,7 +214,9 @@ def create_google_form(topic: str, questions: list) -> str:
                         },
                         "choiceQuestion": {
                             "type": "RADIO",
-                            "options": score_options
+                            "options": [
+                                {"value": f"{score} / {total_q_count}"} for score in range(total_q_count + 1)
+                            ]
                         }
                     }
                 }
@@ -176,10 +225,9 @@ def create_google_form(topic: str, questions: list) -> str:
         }
     })
     
-    # Batch update the Google Form
     forms_service.forms().batchUpdate(formId=form_id, body={"requests": batch_requests}).execute()
 
-    # 5. Relocate Form into standard Drive Folder
+    # 5. Move the created form into the target Drive folder
     try:
         folder_id = get_or_create_folder(drive_service, folder_name="Retrieval Practice Quizzes")
         file = drive_service.files().get(fileId=form_id, fields='parents').execute()
@@ -192,41 +240,53 @@ def create_google_form(topic: str, questions: list) -> str:
             fields='id, parents'
         ).execute()
     except Exception as err:
-        st.warning(f"Form created successfully, but could not be moved to subfolder: {err}")
+        st.warning(f"Form created, but failed to move to folder: {err}")
 
     return f"https://docs.google.com/forms/d/{form_id}/edit"
 
-# ------------------------------------------------------------------------------
-# STREAMLIT UI LAYOUT
-# ------------------------------------------------------------------------------
-st.title("📝 Edexcel Retrieval Practice Generator")
-
-# Sidebar Configuration
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    st.header("Settings")
-    api_key = st.text_input("Gemini API Key", type="password", help="Enter your Google AI Studio API key.")
-    if not api_key and "GEMINI_API_KEY" in st.secrets:
-        api_key = st.secrets["GEMINI_API_KEY"]
+    try:
+        st.image("IMG_0202.png", use_container_width=True)
+    except Exception:
+        pass
+    
+    st.divider()
+    st.title("🔑 Google Integration")
+    
+    active_creds = get_valid_credentials()
+    if active_creds:
+        st.success("✅ Connected to Google Drive")
+        if st.button("Disconnect", key="logout_btn"):
+            st.session_state.google_creds = None
+            st.rerun()
+    else:
+        st.link_button("🔑 Connect Google Drive", get_auth_url(), use_container_width=True)
 
-    level = st.selectbox("Qualification Level", ["GCSE", "A-Level", "IGCSE"])
-    num_q = st.slider("Number of Questions", min_value=3, max_value=10, value=5)
+    st.divider()
+    st.title("🎯 Topic Selector")
+    level = st.selectbox("Exam Level:", ["GCSE", "A Level"])
+    topic = st.text_input("Topic:", placeholder="e.g. Electrolysis")
+    num_q = st.slider("Questions:", 1, 10, 5)
 
-topic = st.text_input("Enter Topic (e.g., 'GCSE Physics - Specific Heat Capacity')", "")
-generate_clicked = st.button("Generate Questions", type="primary")
+# --- 6. MAIN PAGE & ACTIONS ---
+st.title("👨🏻‍🏫 Retrieval Practice")
 
-# ------------------------------------------------------------------------------
-# QUESTION GENERATION LOGIC (STREAMING)
-# ------------------------------------------------------------------------------
+col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
+
+with col1:
+    generate_clicked = st.button("🚀 Generate Questions", key="main_gen", type="primary", use_container_width=True)
+
 if generate_clicked:
     if not api_key:
-        st.error("API Key missing! Please enter it in the sidebar or st.secrets.")
+        st.error("API Key missing! Check your Secrets.")
     elif not topic:
         st.warning("Please enter a topic first.")
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
+            model = genai.GenerativeModel('gemini-3.1-flash-lite')
+           
             prompt = (
                 f"Act as an expert {level} Edexcel examiner. " 
                 f"Create {num_q} retrieval questions for the {level} {topic} topic, "
@@ -237,14 +297,11 @@ if generate_clicked:
                 f"Use LaTeX for math/formulas (e.g., $E=mc^2$). "
                 f"No bolding, no numbers, no intro text. Just the lines with |."
             )
-            
+           
             with st.spinner("Generating exam-style questions..."):
-                response = model.generate_content(prompt, stream=True)
-                
-                raw_text = ""
-                for chunk in response:
-                    raw_text += chunk.text
-                
+                response = model.generate_content(prompt)
+                raw_text = response.text
+               
                 new_quiz = []
                 for line in raw_text.split('\n'):
                     if "|" in line:
@@ -254,7 +311,7 @@ if generate_clicked:
                             a_clean = parts[1].replace("*", "").strip()
                             if len(q_clean) > 3:
                                 new_quiz.append({"q": q_clean, "a": a_clean})
-                
+               
                 if new_quiz:
                     st.session_state.quiz_data = new_quiz
                     st.session_state.last_level = level
@@ -262,34 +319,76 @@ if generate_clicked:
                     st.session_state.revealed_answers = [False] * len(new_quiz)
                     st.rerun()
                 else:
-                    st.error("The AI response could not be parsed properly. Please try generating again.")
+                    st.error("The AI response was formatted incorrectly. Please try again.")
         except Exception as e:
-            st.error(f"Error during generation: {e}")
+            st.error(f"An error occurred: {e}")
 
-# ------------------------------------------------------------------------------
-# DISPLAY QUESTIONS & GOOGLE FORM CREATION
-# ------------------------------------------------------------------------------
+# Render options bar & question list if quiz data is present
 if st.session_state.quiz_data:
-    st.subheader(f"Generated Questions ({st.session_state.last_level}: {st.session_state.last_topic})")
-    
-    for idx, item in enumerate(st.session_state.quiz_data):
-        with st.container():
-            st.markdown(f"**Q{idx+1}:** {item['q']}")
-            
-            # Answer Toggle Button
-            if st.button(f"Show/Hide Answer #{idx+1}", key=f"btn_{idx}"):
-                st.session_state.revealed_answers[idx] = not st.session_state.revealed_answers[idx]
-                
-            if st.session_state.revealed_answers[idx]:
-                st.info(f"**Mark Scheme:** {item['a']}")
-            st.divider()
+    quiz_len = len(st.session_state.quiz_data)
 
-    # Google Form Export Button
-    if st.button("Export Quiz to Google Forms", type="secondary"):
-        with st.spinner("Creating Google Form and setting up Grade Import keys..."):
-            try:
-                form_url = create_google_form(st.session_state.last_topic, st.session_state.quiz_data)
-                st.success("Google Form Quiz created successfully!")
-                st.markdown(f"👉 **[Click here to open and edit your Google Form]({form_url})**")
-            except Exception as e:
-                st.error(f"Failed to create Google Form: {e}")
+    if 'revealed_answers' not in st.session_state or len(st.session_state.revealed_answers) != quiz_len:
+        st.session_state.revealed_answers = [False] * quiz_len
+
+    all_revealed = all(st.session_state.revealed_answers)
+    master_label = "🙈 Hide All Answers" if all_revealed else "👁️ Reveal All Answers"
+
+    with col2:
+        if st.button(master_label, key="master_toggle_button", use_container_width=True):
+            st.session_state.revealed_answers = [not all_revealed] * quiz_len
+            st.rerun()
+
+    with col3:
+        if st.button("🖨️ Save as PDF", key="print_pdf_btn", use_container_width=True):
+            st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
+
+    with col4:
+        if get_valid_credentials():
+            if st.button("📝 Export to Google Forms", key="export_forms_btn", type="primary", use_container_width=True):
+                with st.spinner("Creating Google Form in your Drive folder..."):
+                    try:
+                        form_url = create_google_form(
+                            st.session_state.get("last_topic", "Retrieval Practice"),
+                            st.session_state.quiz_data
+                        )
+                        st.success(f"Form Created in 'Retrieval Practice Quizzes' folder! [Click here to open Form]({form_url})")
+                    except Exception as e:
+                        st.error(f"Failed to create Google Form: {e}")
+        else:
+            st.info(" Connect Google Drive in Sidebar to Export")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- 7. QUESTIONS DISPLAY LOOP ---
+    st.subheader(f"Topic: {st.session_state.get('last_topic', 'Retrieval Practice')} ({st.session_state.get('last_level', 'GCSE')})")
+
+    for i, item in enumerate(st.session_state.quiz_data):
+        q_text = item['q']
+        is_revealed = st.session_state.revealed_answers[i]
+        btn_label = "🙈 Hide Answer" if is_revealed else "👁️ Reveal Answer"
+
+        st.markdown('<div class="question-card">', unsafe_allow_html=True)
+        
+        if is_arabic(q_text):
+            st.markdown(f'<div dir="rtl" style="text-align: right;"><h3>Q{i+1}: {q_text}</h3></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f"### Q{i+1}: {q_text}")
+
+        if st.button(f"{btn_label} Q{i+1}", key=f"individual_btn_{i}"):
+            st.session_state.revealed_answers[i] = not is_revealed
+            st.rerun()
+
+        if st.session_state.revealed_answers[i]:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.write("**Mark Scheme / Guidance:**")
+            a_text = item['a']
+            if is_arabic(a_text):
+                st.markdown(f'<div dir="rtl" style="text-align: right; background-color: #eff6ff; padding: 12px; border-radius: 6px; border-right: 4px solid #004b95;">{a_text}</div>', unsafe_allow_html=True)
+            else:
+                st.info(a_text)
+                
+        st.markdown('</div>', unsafe_allow_html=True)
+
+else:
+    st.divider()
+    st.info("👈 Enter a topic in the sidebar and click 'Generate Questions' to start.")
