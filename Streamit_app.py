@@ -150,17 +150,22 @@ def create_google_form(topic, questions):
     form = forms_service.forms().create(body={"info": {"title": form_title}}).execute()
     form_id = form["formId"]
     
-    # 2. Configure form as Quiz
+    # 2. Configure form as Quiz with IMMEDIATE feedback release for student self-assessment
     batch_requests = [
         {
             "updateSettings": {
-                "settings": {"quizSettings": {"isQuiz": True}},
-                "updateMask": "quizSettings.isQuiz"
+                "settings": {
+                    "quizSettings": {
+                        "isQuiz": True,
+                        "isQuizImmediateGrades": True
+                    }
+                },
+                "updateMask": "quizSettings.isQuiz,quizSettings.isQuizImmediateGrades"
             }
         }
     ]
     
-    # 3. Add questions with cleaned text and post-submission feedback only
+    # 3. Add questions with cleaned text and post-submission feedback
     for i, q in enumerate(questions):
         clean_q = clean_latex_for_forms(q["q"])
         clean_a = clean_latex_for_forms(q["a"])
